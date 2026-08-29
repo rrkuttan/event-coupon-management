@@ -1,0 +1,60 @@
+/* ============================================================================
+   themes/plum.css — warm purple alternate, with its own web fonts
+   (Spectral for headings, Inter for body, JetBrains Mono for codes).
+
+   To use: in index.html change
+     <link rel="stylesheet" href="theme.css">
+   to
+     <link rel="stylesheet" href="themes/plum.css">
+   ============================================================================ */
+@import url('https://fonts.googleapis.com/css2?family=Spectral:wght@400;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap');
+
+:root{
+  /* — Surfaces & text — */
+  --bg:#F7F3F7;
+  --surface:#FFFFFF;
+  --ink:#2A2230;
+  --muted:#7F7488;
+  --field-bg:#FDFBFD;
+  --wash:#F3EDF3;
+
+  /* — Brand (--leaf = primary accent; token name kept for compat) — */
+  --leaf:#5B2A6B;
+  --leaf-light:#743A86;
+  --gold:#C08A2E;
+  --gold-soft:#E8D9C0;
+  --maroon:#9B2C55;
+  --line:#E5DAE7;
+
+  /* — Text on accent fills — */
+  --on-accent:#FFFFFF;
+  --on-accent-soft:#E7D9EC;
+
+  /* — Status — */
+  --ok-bg:#DFEBE1;
+  --ok-fg:#356B41;
+  --warn-bg:#F7DEE6;
+  --warn-fg:var(--maroon);
+  --info-bg:#E7E0F3;
+  --info-fg:#4A3A7A;
+
+  /* — Effects — */
+  --radius:16px;
+  --shadow-card:0 6px 20px rgba(42,34,48,.10);
+  --shadow-tabs:0 4px 14px rgba(42,34,48,.10);
+  --ring:rgba(116,58,134,.45);
+
+  /* — Header lock button — */
+  --lock-bg:rgba(255,255,255,.12);
+  --lock-bg-hover:rgba(255,255,255,.22);
+  --lock-border:rgba(255,255,255,.32);
+
+  /* — Fixed — */
+  --qr-bg:#FFFFFF;
+  --video-bg:#000000;
+
+  /* — Fonts — */
+  --font-body:'Inter',system-ui,sans-serif;
+  --font-display:'Spectral',Georgia,serif;
+  --font-mono:'JetBrains Mono',ui-monospace,monospace;
+}

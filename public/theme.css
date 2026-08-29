@@ -1,0 +1,60 @@
+/* ============================================================================
+   theme.css — the DEFAULT look ("Onam"): the colours and fonts for the whole
+   app. To restyle everything, point index.html's theme <link> at a file in
+   themes/ (or edit the values below).
+
+   This file is the theme *contract*: every token here must be defined by any
+   alternate theme (see themes/README.md). styles.css consumes these tokens and
+   defines no colours or font families of its own.
+   ============================================================================ */
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Work+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap');
+
+:root{
+  /* — Surfaces & text — */
+  --bg:#FBF6EC;
+  --surface:#FFFFFF;
+  --ink:#232219;
+  --muted:#8A8271;
+  --field-bg:#FEFDFB;
+  --wash:#FAF6EA;
+
+  /* — Brand — */
+  --leaf:#1F4D3A;
+  --leaf-light:#3A7256;
+  --gold:#C9A227;
+  --gold-soft:#EADFB4;
+  --maroon:#8B1E3F;
+  --line:#E4DAC0;
+
+  /* — Text sitting on brand-coloured fills (header, buttons, coupon head) — */
+  --on-accent:#FFFFFF;
+  --on-accent-soft:#D9E4DA;
+
+  /* — Status: badges & scan results — */
+  --ok-bg:#DCEFE2;
+  --ok-fg:var(--leaf);
+  --warn-bg:#FBE3E3;
+  --warn-fg:var(--maroon);
+  --info-bg:#E4E0F6;
+  --info-fg:#453384;
+
+  /* — Effects — */
+  --radius:14px;
+  --shadow-card:0 6px 20px rgba(31,77,58,.08);
+  --shadow-tabs:0 4px 14px rgba(31,77,58,.08);
+  --ring:rgba(201,162,39,.4);
+
+  /* — Header lock button (translucent, sits on the --leaf header) — */
+  --lock-bg:rgba(255,255,255,.10);
+  --lock-bg-hover:rgba(255,255,255,.20);
+  --lock-border:rgba(234,223,180,.35);
+
+  /* — Fixed: keep these readable no matter the theme — */
+  --qr-bg:#FFFFFF;       /* QR codes must stay dark-on-light to scan */
+  --video-bg:#000000;    /* camera preview backdrop */
+
+  /* — Fonts — */
+  --font-body:'Work Sans',sans-serif;
+  --font-display:'Fraunces',serif;
+  --font-mono:'IBM Plex Mono',monospace;
+}

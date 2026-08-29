@@ -1,0 +1,58 @@
+/* ============================================================================
+   themes/slate.css — cool neutral alternate look.
+   System fonts (no web-font download), slate + indigo palette.
+
+   To use: in index.html change
+     <link rel="stylesheet" href="theme.css">
+   to
+     <link rel="stylesheet" href="themes/slate.css">
+   ============================================================================ */
+:root{
+  /* — Surfaces & text — */
+  --bg:#EEF1F5;
+  --surface:#FFFFFF;
+  --ink:#1C2530;
+  --muted:#65707F;
+  --field-bg:#F8FAFC;
+  --wash:#F1F4F8;
+
+  /* — Brand (the "--leaf" token is the primary accent; name kept for compat) — */
+  --leaf:#2F4A73;
+  --leaf-light:#3E5F91;
+  --gold:#B5892F;
+  --gold-soft:#E4DAC4;
+  --maroon:#9B2C4A;
+  --line:#D7DDE6;
+
+  /* — Text on accent fills — */
+  --on-accent:#FFFFFF;
+  --on-accent-soft:#D5DEEC;
+
+  /* — Status — */
+  --ok-bg:#DDEBE0;
+  --ok-fg:#2C6B3F;
+  --warn-bg:#F6DEE2;
+  --warn-fg:var(--maroon);
+  --info-bg:#E1E2F3;
+  --info-fg:#3B3A7A;
+
+  /* — Effects — */
+  --radius:12px;
+  --shadow-card:0 6px 20px rgba(28,37,48,.09);
+  --shadow-tabs:0 4px 14px rgba(28,37,48,.09);
+  --ring:rgba(62,95,145,.45);
+
+  /* — Header lock button — */
+  --lock-bg:rgba(255,255,255,.12);
+  --lock-bg-hover:rgba(255,255,255,.22);
+  --lock-border:rgba(255,255,255,.30);
+
+  /* — Fixed — */
+  --qr-bg:#FFFFFF;
+  --video-bg:#000000;
+
+  /* — Fonts (system stacks — nothing to download) — */
+  --font-body:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+  --font-display:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+  --font-mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
