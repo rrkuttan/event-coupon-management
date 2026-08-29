@@ -41,10 +41,9 @@ must not be edited to restyle the app.
 |-------|--------|
 | Surfaces & text | `--bg` · `--surface` · `--ink` · `--muted` · `--field-bg` · `--wash` |
 | Brand | `--leaf` (primary accent) · `--leaf-light` (its pressed/hover) · `--gold` · `--gold-soft` · `--maroon` (danger accent) · `--line` (borders) |
-| Text on accent fills | `--on-accent` · `--on-accent-soft` |
+| Text on accent fills | `--on-accent` (white-ish text on `--leaf` / `--maroon` fills) |
 | Status | `--ok-bg` / `--ok-fg` · `--warn-bg` / `--warn-fg` · `--info-bg` / `--info-fg` |
-| Effects | `--radius` · `--shadow-card` · `--shadow-tabs` · `--ring` (focus ring) |
-| Header lock button | `--lock-bg` · `--lock-bg-hover` · `--lock-border` |
+| Effects | `--radius` · `--shadow-card` · `--ring` (focus ring) |
 | Fixed (keep readable) | `--qr-bg` (keep light — QR must scan) · `--video-bg` |
 | Fonts | `--font-body` · `--font-display` · `--font-mono` |
 
@@ -61,7 +60,7 @@ Serve locally and click through every screen:
 cd public && python3 -m http.server 8000
 ```
 
-Register form, a generated coupon card, the organizer PIN gate + Dashboard, and
-a scan-result box should all be styled with no missing colours. Keep enough
-contrast between `--ink` and `--bg` / `--surface`, and between `--on-accent` and
-`--leaf` / `--maroon`.
+The Home hero, the Register form, a generated coupon card, the organizer PIN
+gate + Dashboard, and a scan-result box should all be styled with no missing
+colours. Keep enough contrast between `--ink` and `--bg` / `--surface`, and
+between `--on-accent` and `--leaf` / `--maroon`.

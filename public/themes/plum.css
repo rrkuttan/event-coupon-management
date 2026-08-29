@@ -28,7 +28,6 @@
 
   /* — Text on accent fills — */
   --on-accent:#FFFFFF;
-  --on-accent-soft:#E7D9EC;
 
   /* — Status — */
   --ok-bg:#DFEBE1;
@@ -41,13 +40,7 @@
   /* — Effects — */
   --radius:16px;
   --shadow-card:0 6px 20px rgba(42,34,48,.10);
-  --shadow-tabs:0 4px 14px rgba(42,34,48,.10);
   --ring:rgba(116,58,134,.45);
-
-  /* — Header lock button — */
-  --lock-bg:rgba(255,255,255,.12);
-  --lock-bg-hover:rgba(255,255,255,.22);
-  --lock-border:rgba(255,255,255,.32);
 
   /* — Fixed — */
   --qr-bg:#FFFFFF;

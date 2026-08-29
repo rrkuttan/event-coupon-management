@@ -28,7 +28,6 @@
 
   /* — Text sitting on brand-coloured fills (header, buttons, coupon head) — */
   --on-accent:#FFFFFF;
-  --on-accent-soft:#D9E4DA;
 
   /* — Status: badges & scan results — */
   --ok-bg:#DCEFE2;
@@ -41,13 +40,7 @@
   /* — Effects — */
   --radius:14px;
   --shadow-card:0 6px 20px rgba(31,77,58,.08);
-  --shadow-tabs:0 4px 14px rgba(31,77,58,.08);
   --ring:rgba(201,162,39,.4);
-
-  /* — Header lock button (translucent, sits on the --leaf header) — */
-  --lock-bg:rgba(255,255,255,.10);
-  --lock-bg-hover:rgba(255,255,255,.20);
-  --lock-border:rgba(234,223,180,.35);
 
   /* — Fixed: keep these readable no matter the theme — */
   --qr-bg:#FFFFFF;       /* QR codes must stay dark-on-light to scan */

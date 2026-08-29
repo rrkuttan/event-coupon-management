@@ -65,15 +65,21 @@
 </head>
 <body>
 
-<header class="top">
+<nav class="topbar" id="topbar">
+  <a class="brand" id="brand-home" href="#" aria-label="SOBHA ETERNIA — Home">
+    <svg class="brand-mark" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="2" y="9" width="2.6" height="13"/><rect x="6.4" y="6" width="2.6" height="16"/><rect x="10.8" y="3" width="2.6" height="19"/><rect x="15.2" y="6" width="2.6" height="16"/><rect x="19.6" y="9" width="2.6" height="13"/></svg>
+    <span class="brand-text"><b>SOBHA ETERNIA</b><i>Bengaluru</i></span>
+  </a>
+  <div class="nav">
+    <button class="nav-link active" data-tab="home">Home</button>
+    <button class="nav-link" data-tab="register">Register</button>
+    <button class="nav-link" data-tab="lookup">My QR Pass</button>
+  </div>
   <button id="admin-lock" class="lock-btn" type="button" aria-label="Organizer access" title="Organizer access">
     <svg class="i-locked" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
     <svg class="i-unlocked" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>
   </button>
-  <div class="eyebrow">SOBHA ETERNIA · Sept 20, 2026</div>
-  <h1>Cultural events & Onam Sadya</h1>
-  <p>Register for the Sadya to get your digital coupon.</p>
-</header>
+</nav>
 
 <div class="wrap">
   <div id="storage-warning" class="storage-alert">
@@ -83,22 +89,18 @@
     <b>Couldn't reach the database.</b> Check your internet connection and reload. If this keeps happening, check the Firestore rules in your Firebase console — they may be blocking access.
   </div>
 
-  <div class="tabs">
-    <button class="tab-btn active" data-tab="register">Register</button>
-    <button class="tab-btn" data-tab="lookup">My Coupon</button>
-  </div>
-
-  <div id="tab-register"></div>
+  <div id="tab-home"></div>
+  <div id="tab-register" style="display:none;"></div>
   <div id="tab-lookup" style="display:none;"></div>
   <div id="tab-admin" style="display:none;"></div>
   <div id="ticket-view" style="display:none;"></div>
 
-  <div class="footer-note">Built for the Onam Sadya organizing committee · data is shared across every resident using this link · build v5-external-css</div>
+  <div class="footer-note">Built for the Sobha Eternia Cultural Committee</div>
 </div>
 
 <script type="module">
 let DATA = null;
-let currentTab = 'register';
+let currentTab = 'home';
 let adminUnlocked = false;
 let adminSubtab = 'dashboard';
 let scanStream = null;
@@ -116,19 +118,27 @@ const DEFAULT_DATA = {
     nextSeq: 1
   },
   culturalEvents: [
-    { id: 'e1', title: 'Pookalam (flower rangoli) judging', time: '10:00 AM' },
-    { id: 'e2', title: 'Thiruvathira dance', time: '11:00 AM' },
-    { id: 'e3', title: 'Onam Sadya lunch', time: '12:30 PM' },
-    { id: 'e4', title: 'Tug of war & kids games', time: '4:00 PM' }
+    { id: 'e1', title: 'Lighting the Lamp', time: '09:00 AM' },
+    { id: 'e2', title: 'Song by Aadya', time: '09:15 AM' },
+    { id: 'e3', title: 'Song by Meghana', time: '09:30 PM' },
+    { id: 'e4', title: 'Light music performance - Shreya, Shashank, Nila, Tanay, Avika', time: '09:45 AM' },
+    { id: 'e5', title: 'Classical Dance - Shreya, Aadya', time: '10:00 AM' },
+    { id: 'e6', title: 'Musical Performance - Sanjith and Team', time: '10:15 AM' },
+    { id: 'e7', title: 'Solo performance - Sanjith', time: '10:30 PM' },
+    { id: 'e8', title: 'Duet - Sanjith and Deepthi', time: '10:45 PM' },
+    { id: 'e9', title: 'Ladies Dance - Shilpa, Shree, Nandita', time: '11:00 AM' },
+    { id: 'e10', title: 'Kids Dance - Choreography by Nandita', time: '11:15 AM' },
+    { id: 'e11', title: 'Closing ceremony and photo booth', time: '11:30 AM' }
   ],
   registrations: []
 };
 
 async function loadData(){
+  renderAll(); // paint the Home page immediately — it doesn't need Firestore
   if(!window.__firebaseReady){
     document.getElementById('storage-warning').style.display = 'block';
-    document.querySelectorAll('.tab-btn, #tab-register, #tab-lookup, #tab-admin').forEach(el => el.style.opacity = '0.4');
-    document.querySelectorAll('.tab-btn').forEach(b => b.disabled = true);
+    document.querySelectorAll('.nav-link[data-tab="register"], .nav-link[data-tab="lookup"], #tab-register, #tab-lookup, #tab-admin').forEach(el => el.style.opacity = '0.4');
+    document.querySelectorAll('.nav-link[data-tab="register"], .nav-link[data-tab="lookup"]').forEach(b => b.disabled = true);
     document.getElementById('admin-lock').disabled = true;
     return;
   }
@@ -240,17 +250,17 @@ function ticketUrl(ticketId){ return location.origin + location.pathname + '?tic
 
 const TICKET_PARAM = new URLSearchParams(location.search).get('ticket');
 if(TICKET_PARAM){
-  document.querySelector('.tabs').style.display = 'none';
+  document.getElementById('topbar').style.display = 'none';
+  document.getElementById('tab-home').style.display = 'none';
   document.getElementById('tab-register').style.display = 'none';
   document.getElementById('tab-lookup').style.display = 'none';
   document.getElementById('tab-admin').style.display = 'none';
-  document.getElementById('admin-lock').style.display = 'none';
   document.getElementById('ticket-view').style.display = '';
   document.getElementById('ticket-view').innerHTML = `<div class="card"><div class="empty">Loading ticket…</div></div>`;
 }
 
 const adminLockBtn = document.getElementById('admin-lock');
-// The lock, up in the header, is the only way into the organizer view: locked →
+// The lock in the nav bar is the only way into the organizer view: locked →
 // tap → PIN gate; once unlocked the icon flips open and tapping toggles the
 // admin panel on/off. `viewing` marks that the panel is currently showing.
 function updateLockUI(){
@@ -260,32 +270,96 @@ function updateLockUI(){
     currentTab === 'admin' ? 'Close organizer view' : (adminUnlocked ? 'Open organizer view' : 'Organizer access'));
 }
 adminLockBtn.addEventListener('click', () => {
-  switchTab(currentTab === 'admin' ? 'register' : 'admin');
+  switchTab(currentTab === 'admin' ? 'home' : 'admin');
 });
 
+const PAGES = ['home', 'register', 'lookup', 'admin'];
 async function switchTab(name){
   currentTab = name;
-  document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
-  document.getElementById('tab-register').style.display = name === 'register' ? '' : 'none';
-  document.getElementById('tab-lookup').style.display = name === 'lookup' ? '' : 'none';
-  document.getElementById('tab-admin').style.display = name === 'admin' ? '' : 'none';
+  document.querySelectorAll('.nav-link').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+  PAGES.forEach(p => { document.getElementById('tab-' + p).style.display = p === name ? '' : 'none'; });
   stopScanner();
   updateLockUI();
   renderAll();
+  window.scrollTo(0, 0);
   // Admin views and coupon lookup read live state (redemptions happen on other
   // devices), so pull the latest before showing them, then re-render.
   if(name === 'admin' || name === 'lookup'){
     if(await refreshData()) renderAll();
   }
 }
-document.querySelectorAll('.tab-btn').forEach(b => b.addEventListener('click', () => switchTab(b.dataset.tab)));
+document.querySelectorAll('.nav-link').forEach(b => b.addEventListener('click', () => switchTab(b.dataset.tab)));
+document.getElementById('brand-home').addEventListener('click', e => { e.preventDefault(); switchTab('home'); });
 
 function renderAll(){
+  if(TICKET_PARAM){ if(DATA) renderTicketView(TICKET_PARAM); return; }
+  if(currentTab === 'home'){ renderHome(); return; }
   if(!DATA) return;
-  if(TICKET_PARAM){ renderTicketView(TICKET_PARAM); return; }
   if(currentTab === 'register') renderRegister();
   if(currentTab === 'lookup') renderLookup();
   if(currentTab === 'admin') renderAdmin();
+}
+
+const EVENT_INFO = {
+  name: 'ONAM 2026',
+  tagline: 'Celebrate. Share. Rejoice.',
+  dateLabel: 'Sunday, 20 September 2026',
+  venue: 'Sobha Eternia Clubhouse',
+  lede: 'Join your Sobha Eternia family for a day of traditional Sadya and cultural celebration — a time to come together, share a meal, and make memories that last.'
+};
+
+function renderHome(){
+  const el = document.getElementById('tab-home');
+  if(el.dataset.built){ paintTicker(); return; }  // hero/about are static — build once, then only refresh the ticker
+  el.dataset.built = '1';
+  const calSvg = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="17" rx="2"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4"/></svg>`;
+  const pinSvg = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 5.5-8 12-8 12s-8-6.5-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="2.6"/></svg>`;
+  el.innerHTML = `
+    <section class="hero">
+      <div class="hero-copy">
+        <span class="eyebrow">SOBHA ETERNIA</span>
+        <h1 class="display-xl">${esc(EVENT_INFO.name)}</h1>
+        <p class="tagline">${esc(EVENT_INFO.tagline)}</p>
+        <div class="flourish"><span></span>&#10047;<span></span></div>
+        <p class="lede">${esc(EVENT_INFO.lede)}</p>
+        <div class="hero-meta">
+          <div class="hero-meta-row">${calSvg}<span>${esc(EVENT_INFO.dateLabel)}</span></div>
+          <div class="hero-meta-row">${pinSvg}<span>${esc(EVENT_INFO.venue)}</span></div>
+        </div>
+        <button class="btn-cta" id="home-register">Register now <span aria-hidden="true">&rarr;</span></button>
+        <p class="hero-note">Digital QR Pass &middot; One coupon, one scan, at the door</p>
+      </div>
+      <div class="hero-art">
+        <img src="assets/onam-hero.jpg" alt="An Onam pookalam — a circular carpet of marigold, jasmine and rose petals — beside a traditional Kerala brass lamp" width="520" height="696" loading="eager" fetchpriority="high">
+      </div>
+    </section>
+
+    <section class="ticker" id="home-ticker" aria-label="Cultural programme" hidden></section>
+  `;
+  document.getElementById('home-register').addEventListener('click', () => switchTab('register'));
+  paintTicker();
+}
+
+// Scrolling ticker of the day's cultural programme (admin-editable list).
+function paintTicker(){
+  const wrap = document.getElementById('home-ticker');
+  if(!wrap) return;
+  const events = (DATA && Array.isArray(DATA.culturalEvents)) ? DATA.culturalEvents : [];
+  if(events.length === 0){ wrap.hidden = true; wrap.innerHTML = ''; return; }
+  const one = events.map(e => `<span class="ticker-item"><b>${esc(e.time)}</b>${esc(e.title)}</span>`).join('');
+  const k = Math.max(1, Math.ceil(6 / events.length));   // repeat so the strip fills the viewport
+  const half = one.repeat(k);
+  const secs = Math.max(16, events.length * k * 3.6);     // constant-ish scroll speed
+  wrap.innerHTML = `
+    <span class="ticker-label">Programmes</span>
+    <ul class="sr-only">${events.map(e => `<li>${esc(e.time)} — ${esc(e.title)}</li>`).join('')}</ul>
+    <div class="ticker-viewport">
+      <div class="ticker-track" style="animation-duration:${secs}s;">
+        <div class="ticker-half">${half}</div>
+        <div class="ticker-half" aria-hidden="true">${half}</div>
+      </div>
+    </div>`;
+  wrap.hidden = false;
 }
 
 function renderTicketView(ticketId, opts){
@@ -459,7 +533,7 @@ function renderLookup(){
   const el = document.getElementById('tab-lookup');
   el.innerHTML = `
     <div class="card">
-      <h2 style="margin-top:0;font-size:19px;">Find your coupon</h2>
+      <h2 style="margin-top:0;font-size:19px;">My QR Pass</h2>
       <label>Flat, phone, coupon, or ticket number</label>
       <input id="lookup-q" type="text" placeholder="e.g. A-1204, 9876543210, ONM-0004, or ONM-0004-02">
       <p class="small-note">Flat or phone number shows every coupon for that household. A coupon number, or an individual ticket number, shows that specific coupon. Every result includes a QR for each member.</p>
@@ -529,7 +603,6 @@ function overallStatusBadge(r){
 
 function couponCardHTML(r, opts){
   opts = opts || {};
-  const eventsList = DATA.culturalEvents.map(e => `<li>${esc(e.time)} — ${esc(e.title)}</li>`).join('');
   const ticketsHTML = r.tickets.map(t => `
     <div style="display:flex;gap:12px;align-items:center;padding:10px 0;border-bottom:1px solid var(--line);">
       <div class="qr-frame" id="qr-${t.ticketId}" style="padding:6px;"></div>
@@ -556,16 +629,15 @@ function couponCardHTML(r, opts){
         <div style="font-size:12px;color:var(--muted);margin-top:4px;">${r.flat ? 'Flat ' + esc(r.flat) + ' · ' : ''}${r.members} member(s) · ${fmtMoney(r.amount)} · Valid ${esc(DATA.config.validityLabel)}</div>
       </div>
       <div class="divider-dash"></div>
-      <div style="padding:4px 16px 0;">
+      <div style="padding:4px 16px 12px;">
         <div class="lbl" style="margin-bottom:2px;">Entry passes — one QR per member, each scanned once</div>
         ${ticketsHTML}
       </div>
+      ${opts.hideWhatsApp ? '' : `
       <div class="divider-dash"></div>
-      <div class="events-strip">
-        <div class="lbl">Cultural programs (updated live)</div>
-        <ul>${eventsList}</ul>
-        ${opts.hideWhatsApp ? '' : `<button class="secondary" data-wa="${r.id}" style="margin-top:10px;width:100%;">Send via WhatsApp</button>`}
-      </div>
+      <div style="padding:14px 16px 16px;">
+        <button class="secondary" data-wa="${r.id}" style="width:100%;">Send via WhatsApp</button>
+      </div>`}
     </div>
   `;
 }
@@ -639,7 +711,7 @@ async function shareCouponWhatsApp(r, btn){
     }
     const digits = r.phone.replace(/\D/g, '');
     const intlPhone = digits.length === 10 ? '91' + digits : digits;
-    const waUrl = `https://wa.me/${intlPhone}?text=${encodeURIComponent(message + '\n\n(Open "My Coupon" in the app and search your number to view/download each QR image.)')}`;
+    const waUrl = `https://wa.me/${intlPhone}?text=${encodeURIComponent(message + '\n\n(Open "My QR Pass" in the app and search your number to view/download each QR image.)')}`;
     window.open(waUrl, '_blank');
   } finally {
     if(btn){ btn.textContent = originalLabel; btn.disabled = false; }
