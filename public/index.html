@@ -1139,25 +1139,65 @@ async function handleRedeemQuery(raw){
     renderRedeemCandidate(box, rows[0].ticket.ticketId);
     return;
   }
+  renderRedeemList(box, raw, null, null);
+}
+
+// Multi-result redeem list. Stays on screen while members enter one by one:
+// each redemption re-renders the list (row flips to "Redeemed", counter drops)
+// with a note about the last confirmation. `confirmingId` is the row currently
+// asking for Confirm/Cancel; `note` is {warn, html} or null.
+function renderRedeemList(box, raw, note, confirmingId){
+  const rows = findTicketRows(raw);
+  if(rows.length === 0){ box.innerHTML = `<div class="scan-result warn"><b>Nothing to show.</b> Search again.</div>`; return; }
   const pending = rows.filter(x => !x.ticket.redeemed).length;
+  const fmtTime = iso => new Date(iso).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'});
   box.innerHTML = `
-    <div class="scan-result ok" style="background:var(--surface);border-color:var(--line);">
-      <div class="lbl" style="margin-bottom:8px;">${rows.length} passes found · ${pending} still to redeem — tap the member entering now</div>
-      ${rows.map(({ reg, ticket }) => `
-        <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--line);">
+    ${note ? `<div class="scan-result ${note.warn ? 'warn' : 'ok'}" style="margin-top:14px;">${note.html}</div>` : ''}
+    <div class="scan-result ok" style="background:var(--surface);border-color:var(--line);margin-top:${note ? 10 : 14}px;">
+      <div class="lbl" style="margin-bottom:8px;">${rows.length} passes · ${pending ? pending + ' still to redeem — tap each member as they enter' : 'all redeemed'}</div>
+      ${rows.map(({ reg, ticket }) => {
+        const meta = `${esc(reg.name)}${reg.flat ? ' · Flat ' + esc(reg.flat) : ''} · Member ${ticket.seq} of ${reg.members}${reg.paymentStatus !== 'paid' ? ' · ⚠ payment pending' : ''}`;
+        let action;
+        if(ticket.redeemed){
+          action = `<span class="badge redeemed" style="flex-shrink:0;">Redeemed${ticket.redeemedAt ? ' · ' + fmtTime(ticket.redeemedAt) : ''}</span>`;
+        }else if(confirmingId === ticket.ticketId){
+          action = `<span style="flex-shrink:0;white-space:nowrap;">
+            <button class="pill-btn paid" data-confirm="${esc(ticket.ticketId)}">Confirm ✓</button>
+            <button class="pill-btn pending" data-cancel="1" style="margin-left:6px;">Cancel</button>
+          </span>`;
+        }else{
+          action = `<button class="pill-btn paid" data-redeem="${esc(ticket.ticketId)}" style="flex-shrink:0;">Redeem</button>`;
+        }
+        return `<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--line);">
           <div style="min-width:0;">
             <div class="mono" style="font-size:12.5px;">${esc(ticket.ticketId)}</div>
-            <div style="font-size:12px;color:var(--muted);">${esc(reg.name)}${reg.flat ? ' · Flat ' + esc(reg.flat) : ''} · Member ${ticket.seq} of ${reg.members}</div>
+            <div style="font-size:12px;color:var(--muted);">${meta}</div>
           </div>
-          ${ticket.redeemed
-            ? `<span class="badge redeemed" style="flex-shrink:0;">Redeemed${ticket.redeemedAt ? ' · ' + new Date(ticket.redeemedAt).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}) : ''}</span>`
-            : `<button class="pill-btn paid" data-redeem="${esc(ticket.ticketId)}" style="flex-shrink:0;">Redeem</button>`}
-        </div>
-      `).join('')}
+          ${action}
+        </div>`;
+      }).join('')}
     </div>
   `;
-  box.querySelectorAll('[data-redeem]').forEach(b => b.addEventListener('click', () => {
-    renderRedeemCandidate(box, b.dataset.redeem);
+  box.querySelectorAll('[data-redeem]').forEach(b => b.addEventListener('click', () => renderRedeemList(box, raw, note, b.dataset.redeem)));
+  box.querySelectorAll('[data-cancel]').forEach(b => b.addEventListener('click', () => renderRedeemList(box, raw, note, null)));
+  box.querySelectorAll('[data-confirm]').forEach(b => b.addEventListener('click', async () => {
+    b.disabled = true; b.textContent = '…';
+    const tid = b.dataset.confirm;
+    const result = await redeemTicket(tid);
+    if(result === 'savefailed'){ renderRedeemList(box, raw, note, null); return; }
+    if(result === 'notfound'){
+      renderRedeemList(box, raw, { warn: true, html: `<b>Not found.</b> Ticket ${esc(tid)} is no longer in the list — the registration may have been removed.` }, null);
+      return;
+    }
+    const { reg, ticket } = findTicket(tid);
+    let newNote;
+    if(result === 'already'){
+      newNote = { warn: true, html: `<b>Already redeemed.</b> ${esc(reg.name)}'s ticket ${esc(ticket.ticketId)} was already used${ticket.redeemedAt ? ' at ' + fmtTime(ticket.redeemedAt) : ''}.` };
+    }else{
+      const prog = ticketProgress(reg);
+      newNote = { warn: false, html: `<b>Entry confirmed</b> for ${esc(reg.name)} — ${esc(ticket.ticketId)}. Household now at ${prog.redeemedCount}/${prog.total} redeemed.` };
+    }
+    renderRedeemList(box, raw, newNote, null);
   }));
 }
 
