@@ -72,7 +72,14 @@ h1,h2,h3,.display{font-family:var(--font-display);}
   border-radius:18px;display:block;box-shadow:var(--shadow-card);
 }
 @media(max-width:639px){
-  .hero-art{order:-1;max-width:420px;margin:0 auto;}   /* photo first on phones, but capped */
+  /* stack copy first (same reading order as the web layout: headline + CTA
+     stay above the fold), photo below and capped so it doesn't run away */
+  .hero{gap:14px;padding:14px 0 4px;}
+  .hero-art{max-width:300px;margin:2px auto 0;}
+  .tagline{margin-bottom:10px;}
+  .flourish{margin-bottom:12px;}
+  .lede{margin-bottom:14px;}
+  .hero-meta{margin-bottom:16px;}
 }
 .hero-copy .eyebrow{display:block;margin-bottom:6px;}
 .display-xl{
