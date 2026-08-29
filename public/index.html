@@ -1036,19 +1036,18 @@ function renderAdminRedeem(c){
   c.innerHTML = `
     <div class="card">
       <h3 style="margin-top:0;">Redeem at entry</h3>
-      <p class="small-note">Scan the resident's QR pass, or type the ticket number if the camera isn't available. Each member has their own ticket, redeemed separately.</p>
+      <p class="small-note">Scan the resident's QR pass, or search by flat, phone, coupon or ticket number if the camera isn't available. Each member has their own ticket, redeemed separately.</p>
       <button class="secondary" id="start-scan">Start camera scan</button>
       <video id="scan-video" style="display:none;margin-top:12px;" playsinline muted></video>
-      <label>Or enter ticket number</label>
-      <input id="manual-coupon" placeholder="ONM-0001-01">
+      <label>Or search flat / phone / coupon / ticket</label>
+      <input id="manual-coupon" placeholder="e.g. A-1204, 9876543210, ONM-0004, or ONM-0004-02">
       <button class="primary" id="manual-lookup">Look up</button>
       <div id="scan-result"></div>
     </div>
   `;
   document.getElementById('start-scan').addEventListener('click', startScanner);
   document.getElementById('manual-lookup').addEventListener('click', () => {
-    const v = document.getElementById('manual-coupon').value.trim().toUpperCase();
-    handleCouponFound(v);
+    handleRedeemQuery(document.getElementById('manual-coupon').value);
   });
   document.getElementById('manual-coupon').addEventListener('keydown', e => { if(e.key === 'Enter') document.getElementById('manual-lookup').click(); });
 }
@@ -1102,21 +1101,83 @@ function stopScanner(){
   if(video) video.style.display = 'none';
 }
 
+// Redeem-tab search: same query rules as the My Coupon lookup, but flattened to
+// individual { reg, ticket } rows (matching a ticket number yields just that one).
+function findTicketRows(raw){
+  const norm = s => String(s || '').toLowerCase().replace(/[\s-]/g, '');
+  const nq = norm(raw);
+  if(!nq) return [];
+  const rowsOf = r => r.tickets.map(t => ({ reg: r, ticket: t }));
+
+  let regs = DATA.registrations.filter(r => (r.flat && norm(r.flat) === nq) || norm(r.phone) === nq);
+  if(regs.length) return regs.flatMap(rowsOf);
+
+  regs = DATA.registrations.filter(r => norm(r.couponNumber) === nq);
+  if(regs.length) return regs.flatMap(rowsOf);
+
+  for(const r of DATA.registrations){
+    const t = r.tickets.find(x => norm(x.ticketId) === nq);
+    if(t) return [{ reg: r, ticket: t }];
+  }
+  return [];
+}
+
+// Manual entry in the Redeem tab — accepts flat / phone / coupon / ticket.
+async function handleRedeemQuery(raw){
+  raw = String(raw || '').trim();
+  const box = document.getElementById('scan-result');
+  if(!box) return;
+  if(!raw){ box.innerHTML = ''; return; }
+  box.innerHTML = `<div class="empty">Searching…</div>`;
+  await refreshData();
+  const rows = findTicketRows(raw);
+  if(rows.length === 0){
+    box.innerHTML = `<div class="scan-result warn"><b>Not found.</b> Nothing matches "${esc(raw)}" — try a flat, phone, coupon (ONM-0004) or ticket (ONM-0004-02) number.</div>`;
+    return;
+  }
+  if(rows.length === 1){
+    renderRedeemCandidate(box, rows[0].ticket.ticketId);
+    return;
+  }
+  const pending = rows.filter(x => !x.ticket.redeemed).length;
+  box.innerHTML = `
+    <div class="scan-result ok" style="background:var(--surface);border-color:var(--line);">
+      <div class="lbl" style="margin-bottom:8px;">${rows.length} passes found · ${pending} still to redeem — tap the member entering now</div>
+      ${rows.map(({ reg, ticket }) => `
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--line);">
+          <div style="min-width:0;">
+            <div class="mono" style="font-size:12.5px;">${esc(ticket.ticketId)}</div>
+            <div style="font-size:12px;color:var(--muted);">${esc(reg.name)}${reg.flat ? ' · Flat ' + esc(reg.flat) : ''} · Member ${ticket.seq} of ${reg.members}</div>
+          </div>
+          ${ticket.redeemed
+            ? `<span class="badge redeemed" style="flex-shrink:0;">Redeemed${ticket.redeemedAt ? ' · ' + new Date(ticket.redeemedAt).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}) : ''}</span>`
+            : `<button class="pill-btn paid" data-redeem="${esc(ticket.ticketId)}" style="flex-shrink:0;">Redeem</button>`}
+        </div>
+      `).join('')}
+    </div>
+  `;
+  box.querySelectorAll('[data-redeem]').forEach(b => b.addEventListener('click', () => {
+    renderRedeemCandidate(box, b.dataset.redeem);
+  }));
+}
+
+// Scanner path — always an exact ticket id from the QR.
 async function handleCouponFound(ticketId){
   const box = document.getElementById('scan-result');
   if(box) box.innerHTML = `<div class="empty">Checking…</div>`;
   await refreshData(); // this ticket may have been redeemed on another device
-  let r = null, t = null;
-  for(const reg of DATA.registrations){
-    const found = reg.tickets.find(x => x.ticketId === ticketId);
-    if(found){ r = reg; t = found; break; }
-  }
+  if(box) renderRedeemCandidate(box, ticketId);
+}
+
+// Shows one ticket's confirm-and-redeem card (or why it can't be redeemed).
+function renderRedeemCandidate(box, ticketId){
+  const { reg: r, ticket: t } = findTicket(ticketId);
   if(!r){
     box.innerHTML = `<div class="scan-result warn"><b>Not found.</b> No ticket matches ${esc(ticketId)}.</div>`;
     return;
   }
   if(t.redeemed){
-    box.innerHTML = `<div class="scan-result warn"><b>Already redeemed.</b> ${esc(r.name)}'s ticket ${t.ticketId} entered at ${new Date(t.redeemedAt).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'})}.</div>`;
+    box.innerHTML = `<div class="scan-result warn"><b>Already redeemed.</b> ${esc(r.name)}'s ticket ${esc(t.ticketId)} entered${t.redeemedAt ? ' at ' + new Date(t.redeemedAt).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}) : ''}.</div>`;
     return;
   }
   const { redeemedCount, total } = ticketProgress(r);
@@ -1124,26 +1185,26 @@ async function handleCouponFound(ticketId){
     ? `<p style="color:var(--maroon);font-weight:600;font-size:13px;">⚠ Payment not yet confirmed for this household.</p>` : '';
   box.innerHTML = `
     <div class="scan-result ok">
-      <b>${esc(r.name)}</b>${r.flat ? ' · Flat ' + esc(r.flat) : ''} · ${t.ticketId} (member ${t.seq} of ${r.members})<br>
+      <b>${esc(r.name)}</b>${r.flat ? ' · Flat ' + esc(r.flat) : ''} · ${esc(t.ticketId)} (member ${t.seq} of ${r.members})<br>
       <span class="small-note">Household progress so far: ${redeemedCount}/${total} redeemed · ${fmtMoney(r.amount)} · ${r.paymentStatus === 'paid' ? 'Payment confirmed' : 'Payment pending'}</span>
       ${paymentWarning}
-      <button class="primary" id="confirm-redeem" data-id="${r.id}" data-ticket="${t.ticketId}">Confirm entry & redeem</button>
+      <button class="primary" id="confirm-redeem">Confirm entry & redeem</button>
     </div>
   `;
   document.getElementById('confirm-redeem').addEventListener('click', async () => {
     const btn = document.getElementById('confirm-redeem');
     btn.disabled = true; btn.textContent = 'Redeeming…';
-    const result = await redeemTicket(ticketId);
+    const result = await redeemTicket(t.ticketId);
     if(result === 'savefailed'){
       btn.disabled = false;
       btn.textContent = 'Confirm entry & redeem';
       return;
     }
     if(result === 'notfound'){
-      box.innerHTML = `<div class="scan-result warn"><b>Not found.</b> No ticket matches ${esc(ticketId)}.</div>`;
+      box.innerHTML = `<div class="scan-result warn"><b>Not found.</b> No ticket matches ${esc(t.ticketId)}.</div>`;
       return;
     }
-    const { reg, ticket } = findTicket(ticketId);
+    const { reg, ticket } = findTicket(t.ticketId);
     const progress = ticketProgress(reg);
     if(result === 'already'){
       box.innerHTML = `<div class="scan-result warn"><b>Already redeemed.</b> ${esc(reg.name)}'s ticket ${esc(ticket.ticketId)} was already used${ticket.redeemedAt ? ' at ' + new Date(ticket.redeemedAt).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}) : ''}.</div>`;
