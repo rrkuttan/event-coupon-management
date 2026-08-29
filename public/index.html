@@ -298,7 +298,8 @@ function normalizeData(loaded){
         tickets.push({ seq: i, ticketId: base + '-' + String(i).padStart(2,'0'), redeemed: !!r.redeemed, redeemedAt: r.redeemedAt || null });
       }
     }
-    return { ...r, tickets };
+    const flat = typeof r.flat === 'string' ? r.flat : '';
+    return { ...r, flat, tickets };
   });
   return { config, culturalEvents, registrations };
 }
@@ -370,7 +371,7 @@ function renderTicketView(ticketId){
           <div><span class="lbl">Name</span><br>${esc(r.name)}</div>
           <div style="text-align:right;">${t.redeemed ? `<span class="badge redeemed">Redeemed</span>` : (r.paymentStatus === 'paid' ? `<span class="badge paid">Paid</span>` : `<span class="badge pending">Payment Pending</span>`)}</div>
         </div>
-        <div style="font-size:12px;color:var(--muted);margin-top:6px;">Member ${t.seq} of ${r.members} · Household ${esc(r.couponNumber)} · ${redeemedCount}/${total} redeemed so far</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:6px;">Member ${t.seq} of ${r.members} · Household ${esc(r.couponNumber)}${r.flat ? ' · Flat ' + esc(r.flat) : ''} · ${redeemedCount}/${total} redeemed so far</div>
         <div style="font-size:12px;color:var(--muted);margin-top:2px;">Valid ${esc(DATA.config.validityLabel)}</div>
       </div>
       <div class="divider-dash"></div>
@@ -423,6 +424,8 @@ function renderRegister(){
       <input id="reg-name" type="text" placeholder="e.g. Anitha Menon">
       <label>Phone number</label>
       <input id="reg-phone" type="tel" placeholder="10-digit mobile number">
+      <label>Flat number</label>
+      <input id="reg-flat" type="text" placeholder="e.g. A-1204">
       <label>Number of members attending</label>
       <input id="reg-members" type="number" min="1" max="20" value="1">
       <div class="amount-preview">
@@ -452,9 +455,11 @@ function renderRegister(){
   document.getElementById('reg-submit').addEventListener('click', async () => {
     const name = document.getElementById('reg-name').value.trim();
     const phone = document.getElementById('reg-phone').value.trim();
+    const flat = document.getElementById('reg-flat').value.trim();
     const members = Math.max(1, parseInt(membersInput.value || '1', 10));
     if(!name){ alert('Please enter the resident name.'); return; }
     if(!/^\d{10}$/.test(phone)){ alert('Please enter a valid 10-digit phone number.'); return; }
+    if(!flat){ alert('Please enter the flat number.'); return; }
     const amount = members * DATA.config.pricePerHead;
     const seq = DATA.config.nextSeq++;
     const couponNumber = 'ONM-' + String(seq).padStart(4, '0');
@@ -469,7 +474,7 @@ function renderRegister(){
     }
     const reg = {
       id: 'r' + Date.now() + Math.floor(Math.random()*1000),
-      name, phone, members, amount, couponNumber,
+      name, phone, flat, members, amount, couponNumber,
       paymentStatus: 'pending',
       tickets,
       createdAt: new Date().toISOString()
@@ -487,6 +492,7 @@ function renderRegister(){
     attachWaButtons([reg]);
     document.getElementById('reg-name').value = '';
     document.getElementById('reg-phone').value = '';
+    document.getElementById('reg-flat').value = '';
     membersInput.value = '1';
     updateAmount();
     if(currentTab === 'admin') renderAdmin();
@@ -499,8 +505,8 @@ function renderLookup(){
   el.innerHTML = `
     <div class="card">
       <h2 style="margin-top:0;font-size:19px;">Find your coupon</h2>
-      <label>Phone number or coupon number</label>
-      <input id="lookup-q" type="text" placeholder="e.g. 9876543210 or ONM-0004">
+      <label>Phone number, coupon number, or flat number</label>
+      <input id="lookup-q" type="text" placeholder="e.g. 9876543210, ONM-0004, or A-1204">
       <button class="primary" id="lookup-btn">Search</button>
     </div>
     <div id="lookup-results"></div>
@@ -511,8 +517,12 @@ function renderLookup(){
 
 function doLookup(){
   const q = document.getElementById('lookup-q').value.trim().toLowerCase();
+  const norm = s => String(s || '').toLowerCase().replace(/[\s-]/g, '');
+  const nq = norm(q);
   const results = DATA.registrations.filter(r =>
-    r.phone.toLowerCase() === q || r.couponNumber.toLowerCase() === q
+    r.phone.toLowerCase() === q ||
+    r.couponNumber.toLowerCase() === q ||
+    (r.flat && norm(r.flat) === nq)
   );
   const box = document.getElementById('lookup-results');
   if(!q){ box.innerHTML = ''; return; }
@@ -566,7 +576,7 @@ function couponCardHTML(r){
           <div><span class="lbl">Name</span><br>${esc(r.name)}</div>
           <div style="text-align:right;">${overallStatusBadge(r)}</div>
         </div>
-        <div style="font-size:12px;color:var(--muted);margin-top:4px;">${r.members} member(s) · ${fmtMoney(r.amount)} · Valid ${esc(DATA.config.validityLabel)}</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:4px;">${r.flat ? 'Flat ' + esc(r.flat) + ' · ' : ''}${r.members} member(s) · ${fmtMoney(r.amount)} · Valid ${esc(DATA.config.validityLabel)}</div>
       </div>
       <div class="divider-dash"></div>
       <div style="padding:4px 16px 0;">
@@ -626,7 +636,7 @@ function getQRDataUrl(text){
 function couponWaMessage(r){
   const events = DATA.culturalEvents.map(e => `${e.time} — ${e.title}`).join('\n');
   const ticketLines = r.tickets.map(t => `  ${t.ticketId} — ${t.redeemed ? 'redeemed' : 'not yet redeemed'}`).join('\n');
-  return `Onam Sadya 2026 — your entry passes\n\nName: ${r.name}\nHousehold coupon: ${r.couponNumber}\nMembers: ${r.members}\nAmount: ₹${r.amount}\nValid: ${DATA.config.validityLabel}\n\nEach member has their own one-time QR pass:\n${ticketLines}\n\nShow the matching QR at the lunch counter — each one scans once.\n\nCultural programs:\n${events}`;
+  return `Onam Sadya 2026 — your entry passes\n\nName: ${r.name}\nHousehold coupon: ${r.couponNumber}${r.flat ? `\nFlat: ${r.flat}` : ''}\nMembers: ${r.members}\nAmount: ₹${r.amount}\nValid: ${DATA.config.validityLabel}\n\nEach member has their own one-time QR pass:\n${ticketLines}\n\nShow the matching QR at the lunch counter — each one scans once.\n\nCultural programs:\n${events}`;
 }
 
 async function shareCouponWhatsApp(r, btn){
@@ -745,12 +755,13 @@ function renderAdminRegistrations(c){
   c.innerHTML = `
     <div class="card" style="overflow-x:auto;">
       <table>
-        <thead><tr><th>Coupon</th><th>Name</th><th>Ph</th><th>Mem</th><th>Amt</th><th>Payment</th><th>Entry</th><th></th><th></th></tr></thead>
+        <thead><tr><th>Coupon</th><th>Name</th><th>Flat</th><th>Ph</th><th>Mem</th><th>Amt</th><th>Payment</th><th>Entry</th><th></th><th></th></tr></thead>
         <tbody>
           ${regs.map(r => `
             <tr>
               <td class="mono">${esc(r.couponNumber)}</td>
               <td>${esc(r.name)}</td>
+              <td>${esc(r.flat || '—')}</td>
               <td class="mono">${esc(r.phone)}</td>
               <td>${r.members}</td>
               <td>${fmtMoney(r.amount)}</td>
@@ -916,7 +927,7 @@ async function handleCouponFound(ticketId){
     ? `<p style="color:var(--maroon);font-weight:600;font-size:13px;">⚠ Payment not yet confirmed for this household.</p>` : '';
   box.innerHTML = `
     <div class="scan-result ok">
-      <b>${esc(r.name)}</b> · ${t.ticketId} (member ${t.seq} of ${r.members})<br>
+      <b>${esc(r.name)}</b>${r.flat ? ' · Flat ' + esc(r.flat) : ''} · ${t.ticketId} (member ${t.seq} of ${r.members})<br>
       <span class="small-note">Household progress so far: ${redeemedCount}/${total} redeemed · ${fmtMoney(r.amount)} · ${r.paymentStatus === 'paid' ? 'Payment confirmed' : 'Payment pending'}</span>
       ${paymentWarning}
       <button class="primary" id="confirm-redeem" data-id="${r.id}" data-ticket="${t.ticketId}">Confirm entry & redeem</button>
@@ -950,9 +961,9 @@ function renderAdminSettlement(c){
     </div>
   `;
   document.getElementById('export-csv').addEventListener('click', () => {
-    const rows = [['Coupon','Ticket','Name','Phone','Household Members','Household Amount','Payment Status','Redeemed','Redeemed At']];
+    const rows = [['Coupon','Ticket','Name','Phone','Flat','Household Members','Household Amount','Payment Status','Redeemed','Redeemed At']];
     regs.forEach(r => r.tickets.forEach(t => rows.push([
-      r.couponNumber, t.ticketId, r.name, r.phone, r.members, r.amount,
+      r.couponNumber, t.ticketId, r.name, r.phone, r.flat || '', r.members, r.amount,
       r.paymentStatus, t.redeemed ? 'Yes' : 'No', t.redeemedAt || ''
     ])));
     const csv = rows.map(row => row.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
