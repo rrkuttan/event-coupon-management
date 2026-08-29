@@ -79,7 +79,7 @@ h1,h2,h3,.display{font-family:'Fraunces',serif;}
 header.top{
   background:var(--leaf);
   color:var(--gold-soft);
-  padding:22px 20px 60px;
+  padding:22px 66px 60px 20px;
   position:relative;
   overflow:hidden;
 }
@@ -96,6 +96,22 @@ header.top .eyebrow{
 }
 header.top h1{font-size:28px;margin:6px 0 2px;color:#fff;font-weight:700;}
 header.top p{margin:0;font-size:13.5px;color:#D9E4DA;max-width:520px;}
+.lock-btn{
+  position:absolute;top:18px;right:16px;width:40px;height:40px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;z-index:2;cursor:pointer;
+  background:rgba(255,255,255,.10);border:1px solid rgba(234,223,180,.35);
+  color:var(--gold-soft);transition:background .18s,transform .1s,box-shadow .18s;
+  -webkit-tap-highlight-color:transparent;
+}
+.lock-btn:hover{background:rgba(255,255,255,.20);}
+.lock-btn:active{transform:scale(.93);}
+.lock-btn svg{width:18px;height:18px;display:block;}
+.lock-btn .i-unlocked{display:none;}
+.lock-btn.unlocked{background:var(--gold);border-color:var(--gold);color:var(--leaf);}
+.lock-btn.unlocked .i-locked{display:none;}
+.lock-btn.unlocked .i-unlocked{display:block;}
+.lock-btn.viewing{box-shadow:0 0 0 3px rgba(201,162,39,.4);}
+.lock-btn:disabled{opacity:.4;cursor:default;}
 .wrap{max-width:640px;margin:-42px auto 0;padding:0 16px;}
 .card{
   background:var(--surface);
@@ -202,9 +218,13 @@ video{width:100%;border-radius:12px;background:#000;}
 <body>
 
 <header class="top">
-  <div class="eyebrow">Apartment Community · Sept 20, 2026</div>
-  <h1>Onam Sadya &amp; Cultural Evening</h1>
-  <p>Register your household, settle the coupon amount, and get a QR entry pass for lunch. One coupon, one scan, at the door.</p>
+  <button id="admin-lock" class="lock-btn" type="button" aria-label="Organizer access" title="Organizer access">
+    <svg class="i-locked" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+    <svg class="i-unlocked" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>
+  </button>
+  <div class="eyebrow">SOBHA ETERNIA · Sept 20, 2026</div>
+  <h1>Cultural events & Onam Sadya</h1>
+  <p>Register for the Sadya to get your digital coupon.</p>
 </header>
 
 <div class="wrap">
@@ -218,7 +238,6 @@ video{width:100%;border-radius:12px;background:#000;}
   <div class="tabs">
     <button class="tab-btn active" data-tab="register">Register</button>
     <button class="tab-btn" data-tab="lookup">My Coupon</button>
-    <button class="tab-btn" data-tab="admin">Admin</button>
   </div>
 
   <div id="tab-register"></div>
@@ -262,6 +281,7 @@ async function loadData(){
     document.getElementById('storage-warning').style.display = 'block';
     document.querySelectorAll('.tab-btn, #tab-register, #tab-lookup, #tab-admin').forEach(el => el.style.opacity = '0.4');
     document.querySelectorAll('.tab-btn').forEach(b => b.disabled = true);
+    document.getElementById('admin-lock').disabled = true;
     return;
   }
   try{
@@ -376,9 +396,24 @@ if(TICKET_PARAM){
   document.getElementById('tab-register').style.display = 'none';
   document.getElementById('tab-lookup').style.display = 'none';
   document.getElementById('tab-admin').style.display = 'none';
+  document.getElementById('admin-lock').style.display = 'none';
   document.getElementById('ticket-view').style.display = '';
   document.getElementById('ticket-view').innerHTML = `<div class="card"><div class="empty">Loading ticket…</div></div>`;
 }
+
+const adminLockBtn = document.getElementById('admin-lock');
+// The lock, up in the header, is the only way into the organizer view: locked →
+// tap → PIN gate; once unlocked the icon flips open and tapping toggles the
+// admin panel on/off. `viewing` marks that the panel is currently showing.
+function updateLockUI(){
+  adminLockBtn.classList.toggle('unlocked', adminUnlocked);
+  adminLockBtn.classList.toggle('viewing', currentTab === 'admin');
+  adminLockBtn.setAttribute('aria-label',
+    currentTab === 'admin' ? 'Close organizer view' : (adminUnlocked ? 'Open organizer view' : 'Organizer access'));
+}
+adminLockBtn.addEventListener('click', () => {
+  switchTab(currentTab === 'admin' ? 'register' : 'admin');
+});
 
 async function switchTab(name){
   currentTab = name;
@@ -387,6 +422,7 @@ async function switchTab(name){
   document.getElementById('tab-lookup').style.display = name === 'lookup' ? '' : 'none';
   document.getElementById('tab-admin').style.display = name === 'admin' ? '' : 'none';
   stopScanner();
+  updateLockUI();
   renderAll();
   // Admin views and coupon lookup read live state (redemptions happen on other
   // devices), so pull the latest before showing them, then re-render.
@@ -490,14 +526,14 @@ function renderRegister(){
   const el = document.getElementById('tab-register');
   el.innerHTML = `
     <div class="card">
-      <h2 style="margin-top:0;font-size:19px;">Register your household</h2>
+      <h2 style="margin-top:0;font-size:19px;">Registration</h2>
       <label>Resident name</label>
       <input id="reg-name" type="text" placeholder="e.g. Anitha Menon">
       <label>Phone number</label>
       <input id="reg-phone" type="tel" placeholder="10-digit mobile number">
       <label>Flat number</label>
       <input id="reg-flat" type="text" placeholder="e.g. A-1204">
-      <label>Number of members attending</label>
+      <label>Number of coupons</label>
       <input id="reg-members" type="number" min="1" max="20" value="1">
       <div class="amount-preview">
         <div>
@@ -729,7 +765,7 @@ function getQRDataUrl(text){
 function couponWaMessage(r){
   const events = DATA.culturalEvents.map(e => `${e.time} — ${e.title}`).join('\n');
   const ticketLines = r.tickets.map(t => `  ${t.ticketId} — ${t.redeemed ? 'redeemed' : 'not yet redeemed'}`).join('\n');
-  return `Onam Sadya 2026 — your entry passes\n\nName: ${r.name}\nHousehold coupon: ${r.couponNumber}${r.flat ? `\nFlat: ${r.flat}` : ''}\nMembers: ${r.members}\nAmount: ₹${r.amount}\nValid: ${DATA.config.validityLabel}\n\nEach member has their own one-time QR pass:\n${ticketLines}\n\nShow the matching QR at the lunch counter — each one scans once.\n\nCultural programs:\n${events}`;
+  return `Onam Sadya 2026 — your entry coupons\n\nName: ${r.name}\nHousehold coupon: ${r.couponNumber}${r.flat ? `\nFlat: ${r.flat}` : ''}\nMembers: ${r.members}\nAmount: ₹${r.amount}\nValid: ${DATA.config.validityLabel}\n\nShow the matching QR at the lunch counter.\n\nCultural programs:\n${events}`;
 }
 
 async function shareCouponWhatsApp(r, btn){
@@ -875,11 +911,19 @@ function renderAdmin(){
         <input id="admin-pin" type="password" placeholder="PIN" style="max-width:200px;margin:14px auto 0;text-align:center;">
         <button class="primary" id="admin-unlock" style="max-width:200px;margin:12px auto 0;">Unlock</button>
       </div>`;
-    document.getElementById('admin-unlock').addEventListener('click', async () => {
+    const tryUnlock = async () => {
       const pin = document.getElementById('admin-pin').value.trim();
-      if(pin === DATA.config.adminPin){ adminUnlocked = true; await refreshData(); renderAdmin(); }
-      else alert('Incorrect PIN.');
-    });
+      if(pin === DATA.config.adminPin){
+        adminUnlocked = true;
+        updateLockUI();
+        await refreshData();
+        renderAdmin();
+      }else{
+        alert('Incorrect PIN.');
+      }
+    };
+    document.getElementById('admin-unlock').addEventListener('click', tryUnlock);
+    document.getElementById('admin-pin').addEventListener('keydown', e => { if(e.key === 'Enter') tryUnlock(); });
     return;
   }
 
@@ -1287,6 +1331,7 @@ function renderAdminSettlement(c){
   });
 }
 
+updateLockUI();
 loadData();
 </script>
 </body>
