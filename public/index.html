@@ -1,0 +1,971 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Onam Sadya 2026 — Registration &amp; Coupons</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Work+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jsqr/1.4.0/jsQR.js"></script>
+<!--
+  FIREBASE SETUP — required before this app works:
+  1. Go to https://console.firebase.google.com, create a free project.
+  2. In the project, go to Build > Firestore Database > Create database.
+     Start in "test mode" (or lock down with the rules note below).
+  3. Go to Project settings (gear icon) > General > Your apps > Web app (</>).
+     Register an app (nickname doesn't matter, no hosting needed).
+  4. Copy the firebaseConfig object it gives you and paste it below,
+     replacing FIREBASE_CONFIG_PLACEHOLDER.
+  5. Recommended Firestore rule for this app (Firestore > Rules tab),
+     since there's no login system — this restricts writes to just
+     this app's one document instead of leaving the whole DB open:
+
+     rules_version = '2';
+     service cloud.firestore {
+       match /databases/{database}/documents {
+         match /onam-sadya/2026 {
+           allow read, write: if true;
+         }
+       }
+     }
+-->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
+  import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+
+  const FIREBASE_CONFIG_PLACEHOLDER = {
+    apiKey: "AIzaSyDUZfZhRktlxLil9OV5VvX-PYdMkGgPxUY",
+    authDomain: "sobha-eternia-onam-2026.firebaseapp.com",
+    projectId: "sobha-eternia-onam-2026",
+    storageBucket: "sobha-eternia-onam-2026.firebasestorage.app",
+    messagingSenderId: "819779239242",
+    appId: "1:819779239242:web:e8ceb2f453094dce05d5b3"
+  };
+
+  window.__firebaseReady = false;
+  try {
+    if (FIREBASE_CONFIG_PLACEHOLDER.apiKey !== "YOUR_API_KEY") {
+      const app = initializeApp(FIREBASE_CONFIG_PLACEHOLDER);
+      window.__db = getFirestore(app);
+      window.__docRef = doc(window.__db, "onam-sadya", "2026");
+      window.__getDoc = getDoc;
+      window.__setDoc = setDoc;
+      window.__firebaseReady = true;
+    }
+  } catch (e) {
+    console.error("Firebase init failed", e);
+  }
+</script>
+<style>
+:root{
+  --bg:#FBF6EC;
+  --surface:#FFFFFF;
+  --ink:#232219;
+  --muted:#8A8271;
+  --leaf:#1F4D3A;
+  --leaf-light:#3A7256;
+  --gold:#C9A227;
+  --gold-soft:#EADFB4;
+  --maroon:#8B1E3F;
+  --line:#E4DAC0;
+  --radius:14px;
+}
+*{box-sizing:border-box;}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:'Work Sans',sans-serif;padding-bottom:60px;}
+h1,h2,h3,.display{font-family:'Fraunces',serif;}
+.mono{font-family:'IBM Plex Mono',monospace;}
+header.top{
+  background:var(--leaf);
+  color:var(--gold-soft);
+  padding:22px 20px 60px;
+  position:relative;
+  overflow:hidden;
+}
+header.top::after{
+  content:"";
+  position:absolute;
+  left:0;right:0;bottom:0;
+  height:10px;
+  background:repeating-linear-gradient(90deg,var(--gold) 0 14px, transparent 14px 20px);
+  opacity:.8;
+}
+header.top .eyebrow{
+  letter-spacing:.14em;text-transform:uppercase;font-size:11px;color:var(--gold);font-weight:600;
+}
+header.top h1{font-size:28px;margin:6px 0 2px;color:#fff;font-weight:700;}
+header.top p{margin:0;font-size:13.5px;color:#D9E4DA;max-width:520px;}
+.wrap{max-width:640px;margin:-42px auto 0;padding:0 16px;}
+.card{
+  background:var(--surface);
+  border-radius:var(--radius);
+  padding:20px;
+  box-shadow:0 6px 20px rgba(31,77,58,.08);
+  border:1px solid var(--line);
+  margin-bottom:16px;
+}
+.tabs{
+  display:flex;gap:6px;background:var(--surface);border-radius:999px;padding:5px;
+  border:1px solid var(--line);margin-bottom:18px;position:sticky;top:8px;z-index:10;
+  box-shadow:0 4px 14px rgba(31,77,58,.08);
+}
+.tab-btn{
+  flex:1;border:none;background:transparent;padding:10px 6px;border-radius:999px;
+  font-family:'Work Sans';font-weight:600;font-size:13px;color:var(--muted);cursor:pointer;
+  transition:.15s;
+}
+.tab-btn.active{background:var(--leaf);color:#fff;}
+label{display:block;font-size:12.5px;font-weight:600;color:var(--muted);margin:14px 0 5px;text-transform:uppercase;letter-spacing:.04em;}
+label:first-child{margin-top:0;}
+input,select{
+  width:100%;padding:11px 12px;border-radius:9px;border:1.5px solid var(--line);
+  font-family:'Work Sans';font-size:15px;background:#FEFDFB;color:var(--ink);
+}
+input:focus,select:focus{outline:none;border-color:var(--leaf-light);}
+button.primary{
+  width:100%;padding:13px;border-radius:9px;border:none;background:var(--leaf);color:#fff;
+  font-weight:700;font-size:15px;cursor:pointer;margin-top:18px;font-family:'Work Sans';
+}
+button.primary:active{background:var(--leaf-light);}
+button.secondary{
+  padding:9px 14px;border-radius:8px;border:1.5px solid var(--leaf);background:transparent;color:var(--leaf);
+  font-weight:600;font-size:13px;cursor:pointer;font-family:'Work Sans';
+}
+button.ghost{background:none;border:none;color:var(--maroon);font-weight:600;font-size:13px;cursor:pointer;}
+.amount-preview{
+  background:var(--gold-soft);border-radius:10px;padding:12px 14px;margin-top:14px;
+  display:flex;justify-content:space-between;align-items:center;
+}
+.amount-preview .num{font-family:'Fraunces';font-size:22px;font-weight:700;color:var(--leaf);}
+.stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;}
+.stat{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px;}
+.stat .v{font-family:'Fraunces';font-size:24px;font-weight:700;color:var(--leaf);}
+.stat .l{font-size:11.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-top:2px;}
+.progress-track{height:10px;background:var(--gold-soft);border-radius:99px;overflow:hidden;margin-top:6px;}
+.progress-fill{height:100%;background:var(--leaf);border-radius:99px;transition:.3s;}
+.coupon{
+  background:var(--surface);
+  border-radius:16px;
+  border:1.5px solid var(--leaf);
+  overflow:hidden;
+  margin-bottom:16px;
+  position:relative;
+}
+.coupon .head{
+  background:var(--leaf);color:#fff;padding:14px 16px;display:flex;justify-content:space-between;align-items:center;
+}
+.coupon .head .title{font-family:'Fraunces';font-weight:600;font-size:16px;}
+.coupon .head .no{font-family:'IBM Plex Mono';font-size:12px;color:var(--gold-soft);}
+.coupon .body{padding:16px;display:flex;gap:16px;align-items:center;}
+.coupon .qr-frame{
+  padding:8px;border-radius:12px;border:2px dashed var(--gold);flex-shrink:0;background:#fff;
+}
+.coupon .details{flex:1;min-width:0;}
+.coupon .details div{margin-bottom:6px;font-size:13.5px;}
+.coupon .details .lbl{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.03em;}
+.badge{display:inline-block;padding:3px 10px;border-radius:99px;font-size:11px;font-weight:700;letter-spacing:.02em;}
+.badge.paid{background:#DCEFE2;color:var(--leaf);}
+.badge.pending{background:#FBE3E3;color:var(--maroon);}
+.badge.redeemed{background:#E4E0F6;color:#453384;}
+.coupon .perf{
+  display:flex;justify-content:space-between;padding:0 16px 14px;
+}
+.divider-dash{border-top:2px dashed var(--line);margin:0 16px;}
+.events-strip{padding:12px 16px 16px;background:#FAF6EA;}
+.events-strip .lbl{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em;margin-bottom:6px;}
+.events-strip ul{margin:0;padding-left:18px;font-size:13px;}
+.events-strip li{margin-bottom:3px;}
+table{width:100%;border-collapse:collapse;font-size:13px;}
+th{text-align:left;font-size:10.5px;color:var(--muted);text-transform:uppercase;padding:6px 4px;border-bottom:1.5px solid var(--line);}
+td{padding:8px 4px;border-bottom:1px solid var(--line);vertical-align:middle;}
+.pill-btn{padding:5px 10px;border-radius:7px;border:none;font-size:11px;font-weight:700;cursor:pointer;}
+.pill-btn.paid{background:var(--leaf);color:#fff;}
+.pill-btn.pending{background:var(--gold-soft);color:var(--ink);}
+.admin-gate{text-align:center;padding:40px 20px;}
+.admin-subtabs{display:flex;gap:6px;overflow-x:auto;margin-bottom:14px;padding-bottom:2px;}
+.admin-subtabs button{
+  flex-shrink:0;padding:7px 13px;border-radius:8px;border:1.5px solid var(--line);background:#fff;
+  font-size:12.5px;font-weight:600;color:var(--muted);cursor:pointer;
+}
+.admin-subtabs button.active{background:var(--maroon);border-color:var(--maroon);color:#fff;}
+video{width:100%;border-radius:12px;background:#000;}
+.scan-result{border-radius:12px;padding:16px;margin-top:14px;}
+.scan-result.ok{background:#DCEFE2;border:1.5px solid var(--leaf);}
+.scan-result.warn{background:#FBE3E3;border:1.5px solid var(--maroon);}
+.event-row{display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--line);}
+.empty{text-align:center;color:var(--muted);font-size:13.5px;padding:24px 0;}
+.small-note{font-size:12px;color:var(--muted);margin-top:6px;}
+.footer-note{text-align:center;color:var(--muted);font-size:11.5px;margin-top:24px;}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="eyebrow">Apartment Community · Sept 20, 2026</div>
+  <h1>Onam Sadya &amp; Cultural Evening</h1>
+  <p>Register your household, settle the coupon amount, and get a QR entry pass for lunch. One coupon, one scan, at the door.</p>
+</header>
+
+<div class="wrap">
+  <div id="storage-warning" style="display:none;background:#8B1E3F;color:#fff;padding:14px 16px;border-radius:12px;margin-bottom:16px;font-size:13.5px;line-height:1.5;">
+    <b>This copy can't save data.</b> Firebase isn't configured yet. Open the &lt;script type="module"&gt; block near the top of the HTML and paste in your Firebase project's config (see the setup comment just above it), then republish.
+  </div>
+  <div id="storage-error" style="display:none;background:#8B1E3F;color:#fff;padding:14px 16px;border-radius:12px;margin-bottom:16px;font-size:13.5px;line-height:1.5;">
+    <b>Couldn't reach the database.</b> Check your internet connection and reload. If this keeps happening, check the Firestore rules in your Firebase console — they may be blocking access.
+  </div>
+
+  <div class="tabs">
+    <button class="tab-btn active" data-tab="register">Register</button>
+    <button class="tab-btn" data-tab="lookup">My Coupon</button>
+    <button class="tab-btn" data-tab="admin">Admin</button>
+  </div>
+
+  <div id="tab-register"></div>
+  <div id="tab-lookup" style="display:none;"></div>
+  <div id="tab-admin" style="display:none;"></div>
+  <div id="ticket-view" style="display:none;"></div>
+
+  <div class="footer-note">Built for the Onam Sadya organizing committee · data is shared across every resident using this link · build v3-per-ticket-qr</div>
+</div>
+
+<script type="module">
+let DATA = null;
+let currentTab = 'register';
+let adminUnlocked = false;
+let adminSubtab = 'dashboard';
+let scanStream = null;
+let scanRAF = null;
+
+const DEFAULT_DATA = {
+  config: {
+    pricePerHead: 550,
+    target: 100,
+    eventDate: '2026-09-20',
+    validityLabel: 'September 20, 2026',
+    venue: 'Apartment Clubhouse, Lunch Session',
+    upiId: 'yourapartment@upi',
+    adminPin: '2026',
+    nextSeq: 1
+  },
+  culturalEvents: [
+    { id: 'e1', title: 'Pookalam (flower rangoli) judging', time: '10:00 AM' },
+    { id: 'e2', title: 'Thiruvathira dance', time: '11:00 AM' },
+    { id: 'e3', title: 'Onam Sadya lunch', time: '12:30 PM' },
+    { id: 'e4', title: 'Tug of war & kids games', time: '4:00 PM' }
+  ],
+  registrations: []
+};
+
+async function loadData(){
+  if(!window.__firebaseReady){
+    document.getElementById('storage-warning').style.display = 'block';
+    document.querySelectorAll('.tab-btn, #tab-register, #tab-lookup, #tab-admin').forEach(el => el.style.opacity = '0.4');
+    document.querySelectorAll('.tab-btn').forEach(b => b.disabled = true);
+    return;
+  }
+  try{
+    const snap = await window.__getDoc(window.__docRef);
+    if(snap.exists()){
+      DATA = normalizeData(snap.data());
+    }else{
+      DATA = structuredClone(DEFAULT_DATA);
+      await saveData();
+    }
+  }catch(e){
+    console.error('Firestore load error', e);
+    document.getElementById('storage-error').style.display = 'block';
+    DATA = structuredClone(DEFAULT_DATA);
+  }
+  renderAll();
+}
+
+// Fills in anything missing from a loaded document (e.g. a doc edited by
+// hand in the Firestore console, or one saved before a schema change)
+// so the app never crashes on a partially-shaped record.
+function normalizeData(loaded){
+  const d = loaded || {};
+  const config = { ...structuredClone(DEFAULT_DATA.config), ...(d.config || {}) };
+  const culturalEvents = Array.isArray(d.culturalEvents) ? d.culturalEvents : structuredClone(DEFAULT_DATA.culturalEvents);
+  const registrations = (Array.isArray(d.registrations) ? d.registrations : []).map(r => {
+    let tickets = Array.isArray(r.tickets) ? r.tickets : null;
+    if(!tickets){
+      // Registration saved before per-member tickets existed — synthesize
+      // one ticket per member so it still shows up instead of vanishing.
+      const members = r.members || 1;
+      const base = r.couponNumber || 'ONM-0000';
+      tickets = [];
+      for(let i = 1; i <= members; i++){
+        tickets.push({ seq: i, ticketId: base + '-' + String(i).padStart(2,'0'), redeemed: !!r.redeemed, redeemedAt: r.redeemedAt || null });
+      }
+    }
+    return { ...r, tickets };
+  });
+  return { config, culturalEvents, registrations };
+}
+
+async function saveData(){
+  try{
+    await window.__setDoc(window.__docRef, DATA);
+  }catch(e){
+    console.error('Firestore save error', e);
+    alert('Could not save — please check your connection and try again.');
+  }
+}
+
+function fmtMoney(n){ return '₹' + Number(n).toLocaleString('en-IN'); }
+function esc(s){ return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function ticketUrl(ticketId){ return location.origin + location.pathname + '?ticket=' + encodeURIComponent(ticketId); }
+
+const TICKET_PARAM = new URLSearchParams(location.search).get('ticket');
+if(TICKET_PARAM){
+  document.querySelector('.tabs').style.display = 'none';
+  document.getElementById('tab-register').style.display = 'none';
+  document.getElementById('tab-lookup').style.display = 'none';
+  document.getElementById('tab-admin').style.display = 'none';
+  document.getElementById('ticket-view').style.display = '';
+  document.getElementById('ticket-view').innerHTML = `<div class="card"><div class="empty">Loading ticket…</div></div>`;
+}
+
+function switchTab(name){
+  currentTab = name;
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+  document.getElementById('tab-register').style.display = name === 'register' ? '' : 'none';
+  document.getElementById('tab-lookup').style.display = name === 'lookup' ? '' : 'none';
+  document.getElementById('tab-admin').style.display = name === 'admin' ? '' : 'none';
+  stopScanner();
+  renderAll();
+}
+document.querySelectorAll('.tab-btn').forEach(b => b.addEventListener('click', () => switchTab(b.dataset.tab)));
+
+function renderAll(){
+  if(!DATA) return;
+  if(TICKET_PARAM){ renderTicketView(TICKET_PARAM); return; }
+  if(currentTab === 'register') renderRegister();
+  if(currentTab === 'lookup') renderLookup();
+  if(currentTab === 'admin') renderAdmin();
+}
+
+function renderTicketView(ticketId){
+  const view = document.getElementById('ticket-view');
+  let r = null, t = null;
+  for(const reg of DATA.registrations){
+    const found = reg.tickets.find(x => x.ticketId === ticketId);
+    if(found){ r = reg; t = found; break; }
+  }
+  if(!r){
+    view.innerHTML = `<div class="card"><div class="empty">No ticket found for "${esc(ticketId)}".</div></div>
+      <p style="text-align:center;"><a href="${location.pathname}" style="color:var(--leaf);font-size:12.5px;">Go to full site</a></p>`;
+    return;
+  }
+  const { redeemedCount, total } = ticketProgress(r);
+  const eventsList = DATA.culturalEvents.map(e => `<li>${esc(e.time)} — ${esc(e.title)}</li>`).join('');
+  view.innerHTML = `
+    <div class="coupon">
+      <div class="head">
+        <div class="title">Onam Sadya Entry Pass</div>
+        <div class="no">${esc(t.ticketId)}</div>
+      </div>
+      <div class="body" style="display:block;">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <div><span class="lbl">Name</span><br>${esc(r.name)}</div>
+          <div style="text-align:right;">${t.redeemed ? `<span class="badge redeemed">Redeemed</span>` : (r.paymentStatus === 'paid' ? `<span class="badge paid">Paid</span>` : `<span class="badge pending">Payment Pending</span>`)}</div>
+        </div>
+        <div style="font-size:12px;color:var(--muted);margin-top:6px;">Member ${t.seq} of ${r.members} · Household ${esc(r.couponNumber)} · ${redeemedCount}/${total} redeemed so far</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:2px;">Valid ${esc(DATA.config.validityLabel)}</div>
+      </div>
+      <div class="divider-dash"></div>
+      <div style="padding:16px;text-align:center;" id="ticket-qr-holder"></div>
+      <div class="divider-dash"></div>
+      <div id="ticket-redeem-zone" style="padding:16px;"></div>
+      <div class="divider-dash"></div>
+      <div class="events-strip">
+        <div class="lbl">Cultural programs (updated live)</div>
+        <ul>${eventsList}</ul>
+      </div>
+    </div>
+    <p style="text-align:center;"><a href="${location.pathname}" style="color:var(--leaf);font-size:12.5px;">Go to full site</a></p>
+  `;
+  new QRCode(document.getElementById('ticket-qr-holder'), {
+    text: ticketUrl(t.ticketId),
+    width: 160, height: 160,
+    colorDark: '#1F4D3A', colorLight: '#ffffff',
+    correctLevel: QRCode.CorrectLevel.M
+  });
+
+  const redeemZone = document.getElementById('ticket-redeem-zone');
+  if(t.redeemed){
+    redeemZone.innerHTML = `<div class="scan-result ok" style="margin-top:0;"><b>Already redeemed</b>${t.redeemedAt ? ' at ' + new Date(t.redeemedAt).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}) : ''}.</div>`;
+  }else{
+    redeemZone.innerHTML = `
+      <label>Organizer PIN to redeem at the door</label>
+      <input id="ticket-pin" type="password" placeholder="PIN" style="max-width:160px;">
+      <button class="primary" id="ticket-redeem-btn" style="max-width:240px;">Confirm entry & redeem</button>
+    `;
+    document.getElementById('ticket-redeem-btn').addEventListener('click', async () => {
+      const pin = document.getElementById('ticket-pin').value.trim();
+      if(pin !== DATA.config.adminPin){ alert('Incorrect PIN.'); return; }
+      t.redeemed = true;
+      t.redeemedAt = new Date().toISOString();
+      if(r.paymentStatus !== 'paid') r.paymentStatus = 'paid';
+      await saveData();
+      renderTicketView(ticketId);
+    });
+  }
+}
+
+/* ---------------- REGISTER TAB ---------------- */
+function renderRegister(){
+  const el = document.getElementById('tab-register');
+  el.innerHTML = `
+    <div class="card">
+      <h2 style="margin-top:0;font-size:19px;">Register your household</h2>
+      <label>Resident name</label>
+      <input id="reg-name" type="text" placeholder="e.g. Anitha Menon">
+      <label>Phone number</label>
+      <input id="reg-phone" type="tel" placeholder="10-digit mobile number">
+      <label>Number of members attending</label>
+      <input id="reg-members" type="number" min="1" max="20" value="1">
+      <div class="amount-preview">
+        <div>
+          <div style="font-size:11px;color:var(--muted);text-transform:uppercase;">Total coupon cost</div>
+          <div class="num" id="reg-amount">₹${DATA.config.pricePerHead}</div>
+        </div>
+        <div style="text-align:right;font-size:12px;color:var(--muted);">
+          ₹${DATA.config.pricePerHead} × <span id="reg-members-echo">1</span> member(s)
+        </div>
+      </div>
+      <button class="primary" id="reg-submit">Generate coupon</button>
+      <p class="small-note">Pay ₹<span id="reg-amount-note">${DATA.config.pricePerHead}</span> via UPI to <b>${esc(DATA.config.upiId)}</b>, or hand cash to the committee. Your coupon activates once payment is confirmed by the organizer.</p>
+    </div>
+    <div id="reg-confirm"></div>
+  `;
+  const membersInput = document.getElementById('reg-members');
+  const updateAmount = () => {
+    const m = Math.max(1, parseInt(membersInput.value || '1', 10));
+    const amt = m * DATA.config.pricePerHead;
+    document.getElementById('reg-amount').textContent = fmtMoney(amt);
+    document.getElementById('reg-members-echo').textContent = m;
+    document.getElementById('reg-amount-note').textContent = amt;
+  };
+  membersInput.addEventListener('input', updateAmount);
+
+  document.getElementById('reg-submit').addEventListener('click', async () => {
+    const name = document.getElementById('reg-name').value.trim();
+    const phone = document.getElementById('reg-phone').value.trim();
+    const members = Math.max(1, parseInt(membersInput.value || '1', 10));
+    if(!name){ alert('Please enter the resident name.'); return; }
+    if(!/^\d{10}$/.test(phone)){ alert('Please enter a valid 10-digit phone number.'); return; }
+    const amount = members * DATA.config.pricePerHead;
+    const seq = DATA.config.nextSeq++;
+    const couponNumber = 'ONM-' + String(seq).padStart(4, '0');
+    const tickets = [];
+    for(let i = 1; i <= members; i++){
+      tickets.push({
+        seq: i,
+        ticketId: couponNumber + '-' + String(i).padStart(2, '0'),
+        redeemed: false,
+        redeemedAt: null
+      });
+    }
+    const reg = {
+      id: 'r' + Date.now() + Math.floor(Math.random()*1000),
+      name, phone, members, amount, couponNumber,
+      paymentStatus: 'pending',
+      tickets,
+      createdAt: new Date().toISOString()
+    };
+    DATA.registrations.push(reg);
+    await saveData();
+    document.getElementById('reg-confirm').innerHTML = `
+      <div class="card" style="border-color:var(--leaf);">
+        <h3 style="margin-top:0;color:var(--leaf);">Registered ✓</h3>
+        <p style="font-size:14px;">Your coupon number is <span class="mono" style="font-weight:600;">${couponNumber}</span> for ${members} member(s), total ${fmtMoney(amount)}.</p>
+        <p class="small-note">You'll get ${members} separate entry pass${members>1?'es':''} — one QR per member, each scanned once at the door. It will show as "Payment Pending" until the organizer confirms your payment.</p>
+      </div>
+      ${couponCardHTML(reg)}`;
+    reg.tickets.forEach(t => renderTicketQR(t));
+    attachWaButtons([reg]);
+    document.getElementById('reg-name').value = '';
+    document.getElementById('reg-phone').value = '';
+    membersInput.value = '1';
+    updateAmount();
+    if(currentTab === 'admin') renderAdmin();
+  });
+}
+
+/* ---------------- LOOKUP TAB ---------------- */
+function renderLookup(){
+  const el = document.getElementById('tab-lookup');
+  el.innerHTML = `
+    <div class="card">
+      <h2 style="margin-top:0;font-size:19px;">Find your coupon</h2>
+      <label>Phone number or coupon number</label>
+      <input id="lookup-q" type="text" placeholder="e.g. 9876543210 or ONM-0004">
+      <button class="primary" id="lookup-btn">Search</button>
+    </div>
+    <div id="lookup-results"></div>
+  `;
+  document.getElementById('lookup-btn').addEventListener('click', doLookup);
+  document.getElementById('lookup-q').addEventListener('keydown', e => { if(e.key === 'Enter') doLookup(); });
+}
+
+function doLookup(){
+  const q = document.getElementById('lookup-q').value.trim().toLowerCase();
+  const results = DATA.registrations.filter(r =>
+    r.phone.toLowerCase() === q || r.couponNumber.toLowerCase() === q
+  );
+  const box = document.getElementById('lookup-results');
+  if(!q){ box.innerHTML = ''; return; }
+  if(results.length === 0){
+    box.innerHTML = `<div class="empty">No coupon found for "${esc(q)}". Check the number, or register first.</div>`;
+    return;
+  }
+  box.innerHTML = results.map(r => couponCardHTML(r)).join('');
+  results.forEach(r => r.tickets.forEach(t => renderTicketQR(t)));
+  attachWaButtons(results);
+}
+
+function ticketProgress(r){
+  const redeemedCount = r.tickets.filter(t => t.redeemed).length;
+  return { redeemedCount, total: r.tickets.length };
+}
+
+function overallStatusBadge(r){
+  const { redeemedCount, total } = ticketProgress(r);
+  if(redeemedCount === 0){
+    return r.paymentStatus === 'paid' ? `<span class="badge paid">Paid</span>` : `<span class="badge pending">Payment Pending</span>`;
+  }
+  if(redeemedCount === total){
+    return `<span class="badge redeemed">All redeemed</span>`;
+  }
+  return `<span class="badge redeemed">Partial — ${redeemedCount}/${total} redeemed</span>`;
+}
+
+function couponCardHTML(r){
+  const eventsList = DATA.culturalEvents.map(e => `<li>${esc(e.time)} — ${esc(e.title)}</li>`).join('');
+  const ticketsHTML = r.tickets.map(t => `
+    <div style="display:flex;gap:12px;align-items:center;padding:10px 0;border-bottom:1px solid var(--line);">
+      <div class="qr-frame" id="qr-${t.ticketId}" style="padding:6px;"></div>
+      <div style="flex:1;">
+        <div class="mono" style="font-size:12.5px;font-weight:600;">${esc(t.ticketId)}</div>
+        <div style="font-size:12px;color:var(--muted);">Member ${t.seq} of ${r.members}</div>
+        <div style="margin-top:4px;">${t.redeemed
+          ? `<span class="badge redeemed">Redeemed${t.redeemedAt ? ' · ' + new Date(t.redeemedAt).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}) : ''}</span>`
+          : `<span class="badge pending">Not yet redeemed</span>`}</div>
+      </div>
+    </div>
+  `).join('');
+  return `
+    <div class="coupon">
+      <div class="head">
+        <div class="title">Onam Sadya Entry Pass</div>
+        <div class="no">${esc(r.couponNumber)}</div>
+      </div>
+      <div class="body" style="display:block;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+          <div><span class="lbl">Name</span><br>${esc(r.name)}</div>
+          <div style="text-align:right;">${overallStatusBadge(r)}</div>
+        </div>
+        <div style="font-size:12px;color:var(--muted);margin-top:4px;">${r.members} member(s) · ${fmtMoney(r.amount)} · Valid ${esc(DATA.config.validityLabel)}</div>
+      </div>
+      <div class="divider-dash"></div>
+      <div style="padding:4px 16px 0;">
+        <div class="lbl" style="margin-bottom:2px;">Entry passes — one QR per member, each scanned once</div>
+        ${ticketsHTML}
+      </div>
+      <div class="divider-dash"></div>
+      <div class="events-strip">
+        <div class="lbl">Cultural programs (updated live)</div>
+        <ul>${eventsList}</ul>
+        <button class="secondary" data-wa="${r.id}" style="margin-top:10px;width:100%;">Send via WhatsApp</button>
+      </div>
+    </div>
+  `;
+}
+
+function attachWaButtons(list){
+  list.forEach(r => {
+    const btn = document.querySelector(`[data-wa="${r.id}"]`);
+    if(btn) btn.addEventListener('click', () => shareCouponWhatsApp(r, btn));
+  });
+}
+
+function renderTicketQR(t){
+  const frame = document.getElementById('qr-' + t.ticketId);
+  if(!frame) return;
+  frame.innerHTML = '';
+  new QRCode(frame, {
+    text: ticketUrl(t.ticketId),
+    width: 88, height: 88,
+    colorDark: '#1F4D3A', colorLight: '#ffffff',
+    correctLevel: QRCode.CorrectLevel.M
+  });
+}
+
+function getQRDataUrl(text){
+  return new Promise(resolve => {
+    const tempDiv = document.createElement('div');
+    tempDiv.style.position = 'fixed';
+    tempDiv.style.left = '-9999px';
+    document.body.appendChild(tempDiv);
+    new QRCode(tempDiv, {
+      text, width: 320, height: 320,
+      colorDark: '#1F4D3A', colorLight: '#ffffff',
+      correctLevel: QRCode.CorrectLevel.M
+    });
+    setTimeout(() => {
+      const canvas = tempDiv.querySelector('canvas');
+      const img = tempDiv.querySelector('img');
+      const dataUrl = canvas ? canvas.toDataURL('image/png') : (img ? img.src : null);
+      document.body.removeChild(tempDiv);
+      resolve(dataUrl);
+    }, 60);
+  });
+}
+
+function couponWaMessage(r){
+  const events = DATA.culturalEvents.map(e => `${e.time} — ${e.title}`).join('\n');
+  const ticketLines = r.tickets.map(t => `  ${t.ticketId} — ${t.redeemed ? 'redeemed' : 'not yet redeemed'}`).join('\n');
+  return `Onam Sadya 2026 — your entry passes\n\nName: ${r.name}\nHousehold coupon: ${r.couponNumber}\nMembers: ${r.members}\nAmount: ₹${r.amount}\nValid: ${DATA.config.validityLabel}\n\nEach member has their own one-time QR pass:\n${ticketLines}\n\nShow the matching QR at the lunch counter — each one scans once.\n\nCultural programs:\n${events}`;
+}
+
+async function shareCouponWhatsApp(r, btn){
+  const originalLabel = btn ? btn.textContent : '';
+  if(btn){ btn.textContent = 'Preparing…'; btn.disabled = true; }
+  try{
+    const message = couponWaMessage(r);
+    if(navigator.share){
+      try{
+        const files = [];
+        for(const t of r.tickets){
+          const dataUrl = await getQRDataUrl(ticketUrl(t.ticketId));
+          if(dataUrl){
+            const blob = await (await fetch(dataUrl)).blob();
+            files.push(new File([blob], t.ticketId + '.png', { type: 'image/png' }));
+          }
+        }
+        if(files.length && navigator.canShare && navigator.canShare({ files })){
+          await navigator.share({ files, text: message, title: 'Onam Sadya Coupons' });
+          return;
+        }
+      }catch(shareErr){ /* fall through to WhatsApp link below */ }
+    }
+    const digits = r.phone.replace(/\D/g, '');
+    const intlPhone = digits.length === 10 ? '91' + digits : digits;
+    const waUrl = `https://wa.me/${intlPhone}?text=${encodeURIComponent(message + '\n\n(Open "My Coupon" in the app and search your number to view/download each QR image.)')}`;
+    window.open(waUrl, '_blank');
+  } finally {
+    if(btn){ btn.textContent = originalLabel; btn.disabled = false; }
+  }
+}
+
+/* ---------------- ADMIN TAB ---------------- */
+function renderAdmin(){
+  const el = document.getElementById('tab-admin');
+  if(!adminUnlocked){
+    el.innerHTML = `
+      <div class="card admin-gate">
+        <h2 style="margin-top:0;">Organizer access</h2>
+        <p class="small-note">Enter the committee PIN to manage registrations, cultural programs, and entry redemption.</p>
+        <input id="admin-pin" type="password" placeholder="PIN" style="max-width:200px;margin:14px auto 0;text-align:center;">
+        <button class="primary" id="admin-unlock" style="max-width:200px;margin:12px auto 0;">Unlock</button>
+      </div>`;
+    document.getElementById('admin-unlock').addEventListener('click', () => {
+      const pin = document.getElementById('admin-pin').value.trim();
+      if(pin === DATA.config.adminPin){ adminUnlocked = true; renderAdmin(); }
+      else alert('Incorrect PIN.');
+    });
+    return;
+  }
+
+  el.innerHTML = `
+    <div class="admin-subtabs">
+      <button data-s="dashboard" class="${adminSubtab==='dashboard'?'active':''}">Dashboard</button>
+      <button data-s="registrations" class="${adminSubtab==='registrations'?'active':''}">Registrations</button>
+      <button data-s="events" class="${adminSubtab==='events'?'active':''}">Cultural Programs</button>
+      <button data-s="redeem" class="${adminSubtab==='redeem'?'active':''}">Redeem Entry</button>
+      <button data-s="settlement" class="${adminSubtab==='settlement'?'active':''}">Settlement</button>
+    </div>
+    <div id="admin-content"></div>
+  `;
+  el.querySelectorAll('.admin-subtabs button').forEach(b => b.addEventListener('click', () => {
+    adminSubtab = b.dataset.s; stopScanner(); renderAdmin();
+  }));
+
+  const c = document.getElementById('admin-content');
+  if(adminSubtab === 'dashboard') renderAdminDashboard(c);
+  if(adminSubtab === 'registrations') renderAdminRegistrations(c);
+  if(adminSubtab === 'events') renderAdminEvents(c);
+  if(adminSubtab === 'redeem') renderAdminRedeem(c);
+  if(adminSubtab === 'settlement') renderAdminSettlement(c);
+}
+
+function computeStats(){
+  const regs = DATA.registrations;
+  const totalFamilies = regs.length;
+  const totalMembers = regs.reduce((s,r)=>s+r.members,0);
+  const paidRegs = regs.filter(r=>r.paymentStatus==='paid');
+  const amountCollected = paidRegs.reduce((s,r)=>s+r.amount,0);
+  const amountExpected = regs.reduce((s,r)=>s+r.amount,0);
+  const redeemedMembers = regs.reduce((s,r)=>s+r.tickets.filter(t=>t.redeemed).length,0);
+  const fullyRedeemedHouseholds = regs.filter(r=>r.tickets.every(t=>t.redeemed)).length;
+  const partiallyRedeemedHouseholds = regs.filter(r=>{
+    const c = r.tickets.filter(t=>t.redeemed).length;
+    return c > 0 && c < r.tickets.length;
+  }).length;
+  return { totalFamilies, totalMembers, amountCollected, amountExpected, redeemedCount: fullyRedeemedHouseholds, partiallyRedeemedHouseholds, redeemedMembers, target: DATA.config.target };
+}
+
+function renderAdminDashboard(c){
+  const s = computeStats();
+  const pct = Math.min(100, Math.round((s.totalMembers / s.target) * 100));
+  c.innerHTML = `
+    <div class="stat-grid">
+      <div class="stat"><div class="v">${s.totalFamilies}</div><div class="l">Households registered</div></div>
+      <div class="stat"><div class="v">${s.totalMembers}</div><div class="l">Members registered</div></div>
+      <div class="stat"><div class="v">${fmtMoney(s.amountCollected)}</div><div class="l">Amount collected (paid)</div></div>
+      <div class="stat"><div class="v">${fmtMoney(s.amountExpected)}</div><div class="l">Amount expected (all)</div></div>
+      <div class="stat"><div class="v">${s.redeemedMembers}</div><div class="l">Members entered so far</div></div>
+      <div class="stat"><div class="v">${s.redeemedCount}</div><div class="l">Households fully redeemed</div></div>
+      <div class="stat"><div class="v">${s.partiallyRedeemedHouseholds}</div><div class="l">Households partially redeemed</div></div>
+    </div>
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;font-size:13px;font-weight:600;">
+        <span>Progress toward target</span><span>${s.totalMembers} / ${s.target}</span>
+      </div>
+      <div class="progress-track"><div class="progress-fill" style="width:${pct}%;"></div></div>
+      <p class="small-note">Price per head: ${fmtMoney(DATA.config.pricePerHead)} · Event: ${esc(DATA.config.validityLabel)}</p>
+    </div>
+  `;
+}
+
+function renderAdminRegistrations(c){
+  const regs = [...DATA.registrations].sort((a,b)=>a.couponNumber.localeCompare(b.couponNumber));
+  if(regs.length === 0){ c.innerHTML = `<div class="card"><div class="empty">No registrations yet.</div></div>`; return; }
+  c.innerHTML = `
+    <div class="card" style="overflow-x:auto;">
+      <table>
+        <thead><tr><th>Coupon</th><th>Name</th><th>Ph</th><th>Mem</th><th>Amt</th><th>Payment</th><th>Entry</th><th></th><th></th></tr></thead>
+        <tbody>
+          ${regs.map(r => `
+            <tr>
+              <td class="mono">${esc(r.couponNumber)}</td>
+              <td>${esc(r.name)}</td>
+              <td class="mono">${esc(r.phone)}</td>
+              <td>${r.members}</td>
+              <td>${fmtMoney(r.amount)}</td>
+              <td><button class="pill-btn ${r.paymentStatus==='paid'?'paid':'pending'}" data-pay="${r.id}">${r.paymentStatus==='paid'?'Paid':'Mark Paid'}</button></td>
+              <td>${(() => {
+                const c = r.tickets.filter(t=>t.redeemed).length;
+                if(c === 0) return '—';
+                if(c === r.tickets.length) return `<span class="badge redeemed">In (${c}/${r.tickets.length})</span>`;
+                return `<span class="badge redeemed">${c}/${r.tickets.length}</span>`;
+              })()}</td>
+              <td><button class="ghost" data-wa="${r.id}" style="color:var(--leaf);">WhatsApp</button></td>
+              <td><button class="ghost" data-del="${r.id}">Remove</button></td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+  c.querySelectorAll('[data-pay]').forEach(b => b.addEventListener('click', async () => {
+    const r = DATA.registrations.find(x => x.id === b.dataset.pay);
+    r.paymentStatus = r.paymentStatus === 'paid' ? 'pending' : 'paid';
+    await saveData(); renderAdminRegistrations(c);
+  }));
+  c.querySelectorAll('[data-wa]').forEach(b => b.addEventListener('click', () => {
+    const r = DATA.registrations.find(x => x.id === b.dataset.wa);
+    if(r) shareCouponWhatsApp(r, b);
+  }));
+  c.querySelectorAll('[data-del]').forEach(b => b.addEventListener('click', async () => {
+    if(!confirm('Remove this registration? This cannot be undone.')) return;
+    DATA.registrations = DATA.registrations.filter(x => x.id !== b.dataset.del);
+    await saveData(); renderAdminRegistrations(c);
+  }));
+}
+
+function renderAdminEvents(c){
+  c.innerHTML = `
+    <div class="card">
+      <h3 style="margin-top:0;">Cultural programs</h3>
+      <p class="small-note">Shown on every resident's coupon in real time — update the lineup any time.</p>
+      <div id="events-list"></div>
+      <label>Time</label>
+      <input id="ev-time" placeholder="e.g. 2:00 PM">
+      <label>Program title</label>
+      <input id="ev-title" placeholder="e.g. Vadam Vali (tug of war)">
+      <button class="primary" id="ev-add">Add program</button>
+    </div>
+  `;
+  const list = document.getElementById('events-list');
+  const paint = () => {
+    list.innerHTML = DATA.culturalEvents.length === 0
+      ? `<div class="empty">No programs added yet.</div>`
+      : DATA.culturalEvents.map(e => `
+        <div class="event-row">
+          <div><span class="mono" style="color:var(--muted);font-size:12px;">${esc(e.time)}</span> — ${esc(e.title)}</div>
+          <button class="ghost" data-rm="${e.id}">Remove</button>
+        </div>
+      `).join('');
+    list.querySelectorAll('[data-rm]').forEach(b => b.addEventListener('click', async () => {
+      DATA.culturalEvents = DATA.culturalEvents.filter(x => x.id !== b.dataset.rm);
+      await saveData(); paint();
+    }));
+  };
+  paint();
+  document.getElementById('ev-add').addEventListener('click', async () => {
+    const time = document.getElementById('ev-time').value.trim();
+    const title = document.getElementById('ev-title').value.trim();
+    if(!title){ alert('Enter a program title.'); return; }
+    DATA.culturalEvents.push({ id: 'e' + Date.now(), title, time: time || 'TBA' });
+    await saveData();
+    document.getElementById('ev-time').value = '';
+    document.getElementById('ev-title').value = '';
+    paint();
+  });
+}
+
+function renderAdminRedeem(c){
+  c.innerHTML = `
+    <div class="card">
+      <h3 style="margin-top:0;">Redeem at entry</h3>
+      <p class="small-note">Scan the resident's QR pass, or type the ticket number if the camera isn't available. Each member has their own ticket, redeemed separately.</p>
+      <button class="secondary" id="start-scan">Start camera scan</button>
+      <video id="scan-video" style="display:none;margin-top:12px;" playsinline muted></video>
+      <label>Or enter ticket number</label>
+      <input id="manual-coupon" placeholder="ONM-0001-01">
+      <button class="primary" id="manual-lookup">Look up</button>
+      <div id="scan-result"></div>
+    </div>
+  `;
+  document.getElementById('start-scan').addEventListener('click', startScanner);
+  document.getElementById('manual-lookup').addEventListener('click', () => {
+    const v = document.getElementById('manual-coupon').value.trim().toUpperCase();
+    handleCouponFound(v);
+  });
+  document.getElementById('manual-coupon').addEventListener('keydown', e => { if(e.key === 'Enter') document.getElementById('manual-lookup').click(); });
+}
+
+async function startScanner(){
+  const video = document.getElementById('scan-video');
+  video.style.display = '';
+  try{
+    scanStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+  }catch(e){
+    alert('Camera access unavailable. Use manual coupon entry instead.');
+    return;
+  }
+  video.srcObject = scanStream;
+  await video.play();
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+  const tick = () => {
+    if(video.readyState === video.HAVE_ENOUGH_DATA){
+      canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const code = jsQR(img.data, img.width, img.height);
+      if(code && code.data){
+        let ticketId = null;
+        if(code.data.startsWith('ONAM-TICKET:')){
+          ticketId = code.data.replace('ONAM-TICKET:', '');
+        }else{
+          try{
+            const parsed = new URL(code.data);
+            ticketId = parsed.searchParams.get('ticket');
+          }catch(e){ /* not a URL — ignore */ }
+        }
+        if(ticketId){
+          stopScanner();
+          handleCouponFound(ticketId);
+          return;
+        }
+      }
+    }
+    scanRAF = requestAnimationFrame(tick);
+  };
+  scanRAF = requestAnimationFrame(tick);
+}
+
+function stopScanner(){
+  if(scanRAF) cancelAnimationFrame(scanRAF);
+  scanRAF = null;
+  if(scanStream){ scanStream.getTracks().forEach(t => t.stop()); scanStream = null; }
+  const video = document.getElementById('scan-video');
+  if(video) video.style.display = 'none';
+}
+
+async function handleCouponFound(ticketId){
+  const box = document.getElementById('scan-result');
+  let r = null, t = null;
+  for(const reg of DATA.registrations){
+    const found = reg.tickets.find(x => x.ticketId === ticketId);
+    if(found){ r = reg; t = found; break; }
+  }
+  if(!r){
+    box.innerHTML = `<div class="scan-result warn"><b>Not found.</b> No ticket matches ${esc(ticketId)}.</div>`;
+    return;
+  }
+  if(t.redeemed){
+    box.innerHTML = `<div class="scan-result warn"><b>Already redeemed.</b> ${esc(r.name)}'s ticket ${t.ticketId} entered at ${new Date(t.redeemedAt).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'})}.</div>`;
+    return;
+  }
+  const { redeemedCount, total } = ticketProgress(r);
+  const paymentWarning = r.paymentStatus !== 'paid'
+    ? `<p style="color:var(--maroon);font-weight:600;font-size:13px;">⚠ Payment not yet confirmed for this household.</p>` : '';
+  box.innerHTML = `
+    <div class="scan-result ok">
+      <b>${esc(r.name)}</b> · ${t.ticketId} (member ${t.seq} of ${r.members})<br>
+      <span class="small-note">Household progress so far: ${redeemedCount}/${total} redeemed · ${fmtMoney(r.amount)} · ${r.paymentStatus === 'paid' ? 'Payment confirmed' : 'Payment pending'}</span>
+      ${paymentWarning}
+      <button class="primary" id="confirm-redeem" data-id="${r.id}" data-ticket="${t.ticketId}">Confirm entry & redeem</button>
+    </div>
+  `;
+  document.getElementById('confirm-redeem').addEventListener('click', async () => {
+    t.redeemed = true;
+    t.redeemedAt = new Date().toISOString();
+    if(r.paymentStatus !== 'paid') r.paymentStatus = 'paid';
+    await saveData();
+    const progress = ticketProgress(r);
+    box.innerHTML = `<div class="scan-result ok"><b>Entry confirmed</b> for ${esc(r.name)} — ${t.ticketId}. Household now at ${progress.redeemedCount}/${progress.total} redeemed.</div>`;
+  });
+}
+
+function renderAdminSettlement(c){
+  const s = computeStats();
+  const regs = [...DATA.registrations].sort((a,b)=>a.couponNumber.localeCompare(b.couponNumber));
+  const pendingAmt = s.amountExpected - s.amountCollected;
+  c.innerHTML = `
+    <div class="card">
+      <h3 style="margin-top:0;">Final settlement</h3>
+      <div style="font-size:14px;line-height:1.9;">
+        Households registered: <b>${s.totalFamilies}</b><br>
+        Members registered: <b>${s.totalMembers}</b><br>
+        Members who entered (redeemed): <b>${s.redeemedMembers}</b><br>
+        Amount collected: <b>${fmtMoney(s.amountCollected)}</b><br>
+        Amount still pending: <b>${fmtMoney(pendingAmt)}</b>
+      </div>
+      <button class="secondary" id="export-csv" style="margin-top:14px;">Export settlement CSV</button>
+    </div>
+  `;
+  document.getElementById('export-csv').addEventListener('click', () => {
+    const rows = [['Coupon','Ticket','Name','Phone','Household Members','Household Amount','Payment Status','Redeemed','Redeemed At']];
+    regs.forEach(r => r.tickets.forEach(t => rows.push([
+      r.couponNumber, t.ticketId, r.name, r.phone, r.members, r.amount,
+      r.paymentStatus, t.redeemed ? 'Yes' : 'No', t.redeemedAt || ''
+    ])));
+    const csv = rows.map(row => row.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'onam-sadya-settlement.csv';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  });
+}
+
+loadData();
+</script>
+</body>
+</html>
