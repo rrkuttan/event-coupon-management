@@ -8,6 +8,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Work+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jsqr/1.4.0/jsQR.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <!--
   FIREBASE SETUP — required before this app works:
   1. Go to https://console.firebase.google.com, create a free project.
@@ -225,7 +226,7 @@ video{width:100%;border-radius:12px;background:#000;}
   <div id="tab-admin" style="display:none;"></div>
   <div id="ticket-view" style="display:none;"></div>
 
-  <div class="footer-note">Built for the Onam Sadya organizing committee · data is shared across every resident using this link · build v3-per-ticket-qr</div>
+  <div class="footer-note">Built for the Onam Sadya organizing committee · data is shared across every resident using this link · build v4-search-pdf</div>
 </div>
 
 <script type="module">
@@ -505,8 +506,9 @@ function renderLookup(){
   el.innerHTML = `
     <div class="card">
       <h2 style="margin-top:0;font-size:19px;">Find your coupon</h2>
-      <label>Phone number, coupon number, or flat number</label>
-      <input id="lookup-q" type="text" placeholder="e.g. 9876543210, ONM-0004, or A-1204">
+      <label>Flat, phone, coupon, or ticket number</label>
+      <input id="lookup-q" type="text" placeholder="e.g. A-1204, 9876543210, ONM-0004, or ONM-0004-02">
+      <p class="small-note">Flat or phone number shows every coupon for that household. A coupon number, or an individual ticket number, shows that specific coupon. Every result includes a QR for each member.</p>
       <button class="primary" id="lookup-btn">Search</button>
     </div>
     <div id="lookup-results"></div>
@@ -516,23 +518,41 @@ function renderLookup(){
 }
 
 function doLookup(){
-  const q = document.getElementById('lookup-q').value.trim().toLowerCase();
-  const norm = s => String(s || '').toLowerCase().replace(/[\s-]/g, '');
-  const nq = norm(q);
-  const results = DATA.registrations.filter(r =>
-    r.phone.toLowerCase() === q ||
-    r.couponNumber.toLowerCase() === q ||
-    (r.flat && norm(r.flat) === nq)
-  );
+  const raw = document.getElementById('lookup-q').value.trim();
   const box = document.getElementById('lookup-results');
-  if(!q){ box.innerHTML = ''; return; }
+  if(!raw){ box.innerHTML = ''; return; }
+  const norm = s => String(s || '').toLowerCase().replace(/[\s-]/g, '');
+  const nq = norm(raw);
+
+  // Flat or phone number → every coupon registered under that flat / phone.
+  let results = DATA.registrations.filter(r =>
+    (r.flat && norm(r.flat) === nq) || norm(r.phone) === nq
+  );
+  // Otherwise an exact coupon number → that one coupon.
   if(results.length === 0){
-    box.innerHTML = `<div class="empty">No coupon found for "${esc(q)}". Check the number, or register first.</div>`;
+    results = DATA.registrations.filter(r => norm(r.couponNumber) === nq);
+  }
+  // Otherwise an individual ticket number → the coupon that ticket belongs to.
+  if(results.length === 0){
+    results = DATA.registrations.filter(r => r.tickets.some(t => norm(t.ticketId) === nq));
+  }
+
+  if(results.length === 0){
+    box.innerHTML = `<div class="empty">No coupon found for "${esc(raw)}". Try your flat number, phone number, coupon number (ONM-0004) or ticket number (ONM-0004-02) — or register first.</div>`;
     return;
   }
-  box.innerHTML = results.map(r => couponCardHTML(r)).join('');
+
+  const totalTickets = results.reduce((s, r) => s + r.tickets.length, 0);
+  box.innerHTML = `
+    <div class="card" style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+      <div style="font-size:13px;color:var(--muted);">
+        ${results.length} coupon${results.length > 1 ? 's' : ''} · ${totalTickets} entry pass${totalTickets > 1 ? 'es' : ''} found
+      </div>
+      <button class="secondary" id="wa-results">Send all as WhatsApp PDF</button>
+    </div>
+  ` + results.map(r => couponCardHTML(r, { hideWhatsApp: true })).join('');
   results.forEach(r => r.tickets.forEach(t => renderTicketQR(t)));
-  attachWaButtons(results);
+  document.getElementById('wa-results').addEventListener('click', e => shareResultsWhatsApp(results, e.currentTarget));
 }
 
 function ticketProgress(r){
@@ -551,7 +571,8 @@ function overallStatusBadge(r){
   return `<span class="badge redeemed">Partial — ${redeemedCount}/${total} redeemed</span>`;
 }
 
-function couponCardHTML(r){
+function couponCardHTML(r, opts){
+  opts = opts || {};
   const eventsList = DATA.culturalEvents.map(e => `<li>${esc(e.time)} — ${esc(e.title)}</li>`).join('');
   const ticketsHTML = r.tickets.map(t => `
     <div style="display:flex;gap:12px;align-items:center;padding:10px 0;border-bottom:1px solid var(--line);">
@@ -587,7 +608,7 @@ function couponCardHTML(r){
       <div class="events-strip">
         <div class="lbl">Cultural programs (updated live)</div>
         <ul>${eventsList}</ul>
-        <button class="secondary" data-wa="${r.id}" style="margin-top:10px;width:100%;">Send via WhatsApp</button>
+        ${opts.hideWhatsApp ? '' : `<button class="secondary" data-wa="${r.id}" style="margin-top:10px;width:100%;">Send via WhatsApp</button>`}
       </div>
     </div>
   `;
@@ -666,6 +687,108 @@ async function shareCouponWhatsApp(r, btn){
     window.open(waUrl, '_blank');
   } finally {
     if(btn){ btn.textContent = originalLabel; btn.disabled = false; }
+  }
+}
+
+/* ---- Search-results → PDF → WhatsApp ---- */
+function resultsWaText(list){
+  const events = DATA.culturalEvents.map(e => `${e.time} — ${e.title}`).join('\n');
+  const blocks = list.map(r => {
+    const tl = r.tickets.map(t => `  ${t.ticketId} — ${t.redeemed ? 'redeemed' : 'not yet redeemed'}`).join('\n');
+    return `${r.couponNumber} · ${r.name}${r.flat ? ' · Flat ' + r.flat : ''}\n${r.members} member(s) · ₹${r.amount} · ${r.paymentStatus === 'paid' ? 'Paid' : 'Payment pending'}\n${tl}`;
+  }).join('\n\n');
+  const heading = list.length === 1 ? 'your entry passes' : `${list.length} coupons`;
+  return `Onam Sadya 2026 — ${heading}\nValid: ${DATA.config.validityLabel}\n\n${blocks}\n\nEvery member's one-time QR pass is in the attached PDF. Show the matching QR at the lunch counter — each one scans once.\n\nCultural programs:\n${events}`;
+}
+
+// Builds a PDF: one section per coupon, a grid of ticket QR codes under each.
+async function buildResultsPdf(list){
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit: 'pt', format: 'a4' });
+  const pageW = doc.internal.pageSize.getWidth();
+  const pageH = doc.internal.pageSize.getHeight();
+  const M = 40;
+  let y = M;
+  const ensure = h => { if(y + h > pageH - M){ doc.addPage(); y = M; } };
+
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(16);
+  doc.text('Onam Sadya 2026 — Entry Passes', M, y); y += 20;
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(90);
+  doc.text(`Valid ${DATA.config.validityLabel} · ${DATA.config.venue}`, M, y); y += 6;
+  doc.setTextColor(0);
+
+  for(const r of list){
+    ensure(90);
+    y += 16;
+    doc.setDrawColor(210); doc.setLineWidth(1); doc.line(M, y, pageW - M, y); y += 16;
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(13);
+    doc.text(`${r.couponNumber}  —  ${r.name}`, M, y); y += 15;
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(90);
+    const meta = [
+      r.flat ? `Flat ${r.flat}` : null,
+      `Phone ${r.phone}`,
+      `${r.members} member(s)`,
+      `₹${r.amount}`,
+      r.paymentStatus === 'paid' ? 'Paid' : 'Payment pending'
+    ].filter(Boolean).join('   ·   ');
+    doc.text(meta, M, y); y += 18;
+    doc.setTextColor(0);
+
+    const qr = 110, cellH = qr + 26, gap = 22;
+    const perRow = Math.max(1, Math.floor((pageW - 2 * M + gap) / (qr + gap)));
+    for(let i = 0; i < r.tickets.length; i++){
+      const col = i % perRow;
+      if(col === 0) ensure(cellH + 6);
+      const x = M + col * (qr + gap);
+      const t = r.tickets[i];
+      const dataUrl = await getQRDataUrl(ticketUrl(t.ticketId));
+      if(dataUrl) doc.addImage(dataUrl, 'PNG', x, y, qr, qr);
+      doc.setFontSize(8); doc.setFont('helvetica', 'bold'); doc.setTextColor(0);
+      doc.text(t.ticketId, x, y + qr + 10);
+      doc.setFont('helvetica', 'normal'); doc.setTextColor(90);
+      doc.text(`Member ${t.seq} of ${r.members}${t.redeemed ? ' · redeemed' : ''}`, x, y + qr + 20);
+      doc.setTextColor(0);
+      if(col === perRow - 1 || i === r.tickets.length - 1) y += cellH + gap;
+    }
+  }
+  return doc.output('blob');
+}
+
+async function shareResultsWhatsApp(list, btn){
+  const original = btn.textContent;
+  btn.textContent = 'Preparing PDF…'; btn.disabled = true;
+  try{
+    const blob = await buildResultsPdf(list);
+    const fname = list.length === 1 ? `onam-sadya-${list[0].couponNumber}.pdf` : 'onam-sadya-coupons.pdf';
+    const file = new File([blob], fname, { type: 'application/pdf' });
+    const text = resultsWaText(list);
+
+    if(navigator.canShare && navigator.canShare({ files: [file] })){
+      try{
+        await navigator.share({ files: [file], text, title: 'Onam Sadya Entry Passes' });
+        return;
+      }catch(err){
+        if(err && err.name === 'AbortError') return; // user dismissed the sheet
+        // otherwise fall through to download + wa.me link
+      }
+    }
+
+    // Fallback (desktop / no file-share): save the PDF, open WhatsApp with the text.
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = fname;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 4000);
+
+    const digits = String(list[0].phone || '').replace(/\D/g, '');
+    const intlPhone = digits.length === 10 ? '91' + digits : digits;
+    const waText = encodeURIComponent(text + '\n\n(The PDF with all QR codes was just downloaded to this device — attach it to the WhatsApp chat.)');
+    window.open(intlPhone ? `https://wa.me/${intlPhone}?text=${waText}` : `https://wa.me/?text=${waText}`, '_blank');
+  }catch(e){
+    console.error('PDF share failed', e);
+    alert('Could not create the PDF. Please try again.');
+  }finally{
+    btn.textContent = original; btn.disabled = false;
   }
 }
 
