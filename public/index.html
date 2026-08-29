@@ -319,12 +319,17 @@ async function saveData(){
 // Pull the latest document into DATA without re-rendering. Used right before a
 // redemption write so we don't clobber changes another device made meanwhile
 // (the whole doc is replaced on save, so stale DATA = lost updates).
+// Returns true only if the fetched document actually differs from DATA, so
+// callers can avoid a re-render (and clobbering half-typed input) on no-op syncs.
 async function refreshData(){
   if(!window.__firebaseReady) return false;
   try{
     const snap = await window.__getDoc(window.__docRef);
-    if(snap.exists()) DATA = normalizeData(snap.data());
-    return true;
+    if(!snap.exists()) return false;
+    const fresh = normalizeData(snap.data());
+    const changed = JSON.stringify(fresh) !== JSON.stringify(DATA);
+    DATA = fresh;
+    return changed;
   }catch(e){
     console.error('Firestore refresh error', e);
     return false;
@@ -375,7 +380,7 @@ if(TICKET_PARAM){
   document.getElementById('ticket-view').innerHTML = `<div class="card"><div class="empty">Loading ticket…</div></div>`;
 }
 
-function switchTab(name){
+async function switchTab(name){
   currentTab = name;
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
   document.getElementById('tab-register').style.display = name === 'register' ? '' : 'none';
@@ -383,6 +388,11 @@ function switchTab(name){
   document.getElementById('tab-admin').style.display = name === 'admin' ? '' : 'none';
   stopScanner();
   renderAll();
+  // Admin views and coupon lookup read live state (redemptions happen on other
+  // devices), so pull the latest before showing them, then re-render.
+  if(name === 'admin' || name === 'lookup'){
+    if(await refreshData()) renderAll();
+  }
 }
 document.querySelectorAll('.tab-btn').forEach(b => b.addEventListener('click', () => switchTab(b.dataset.tab)));
 
@@ -577,10 +587,12 @@ function renderLookup(){
   document.getElementById('lookup-q').addEventListener('keydown', e => { if(e.key === 'Enter') doLookup(); });
 }
 
-function doLookup(){
+async function doLookup(){
   const raw = document.getElementById('lookup-q').value.trim();
   const box = document.getElementById('lookup-results');
   if(!raw){ box.innerHTML = ''; return; }
+  box.innerHTML = `<div class="empty">Searching…</div>`;
+  await refreshData(); // redemptions may have happened on another device
   const norm = s => String(s || '').toLowerCase().replace(/[\s-]/g, '');
   const nq = norm(raw);
 
@@ -863,9 +875,9 @@ function renderAdmin(){
         <input id="admin-pin" type="password" placeholder="PIN" style="max-width:200px;margin:14px auto 0;text-align:center;">
         <button class="primary" id="admin-unlock" style="max-width:200px;margin:12px auto 0;">Unlock</button>
       </div>`;
-    document.getElementById('admin-unlock').addEventListener('click', () => {
+    document.getElementById('admin-unlock').addEventListener('click', async () => {
       const pin = document.getElementById('admin-pin').value.trim();
-      if(pin === DATA.config.adminPin){ adminUnlocked = true; renderAdmin(); }
+      if(pin === DATA.config.adminPin){ adminUnlocked = true; await refreshData(); renderAdmin(); }
       else alert('Incorrect PIN.');
     });
     return;
@@ -881,8 +893,8 @@ function renderAdmin(){
     </div>
     <div id="admin-content"></div>
   `;
-  el.querySelectorAll('.admin-subtabs button').forEach(b => b.addEventListener('click', () => {
-    adminSubtab = b.dataset.s; stopScanner(); renderAdmin();
+  el.querySelectorAll('.admin-subtabs button').forEach(b => b.addEventListener('click', async () => {
+    adminSubtab = b.dataset.s; stopScanner(); await refreshData(); renderAdmin();
   }));
 
   const c = document.getElementById('admin-content');
@@ -1092,6 +1104,8 @@ function stopScanner(){
 
 async function handleCouponFound(ticketId){
   const box = document.getElementById('scan-result');
+  if(box) box.innerHTML = `<div class="empty">Checking…</div>`;
+  await refreshData(); // this ticket may have been redeemed on another device
   let r = null, t = null;
   for(const reg of DATA.registrations){
     const found = reg.tickets.find(x => x.ticketId === ticketId);
