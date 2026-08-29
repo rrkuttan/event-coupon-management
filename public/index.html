@@ -308,10 +308,57 @@ function normalizeData(loaded){
 async function saveData(){
   try{
     await window.__setDoc(window.__docRef, DATA);
+    return true;
   }catch(e){
     console.error('Firestore save error', e);
     alert('Could not save — please check your connection and try again.');
+    return false;
   }
+}
+
+// Pull the latest document into DATA without re-rendering. Used right before a
+// redemption write so we don't clobber changes another device made meanwhile
+// (the whole doc is replaced on save, so stale DATA = lost updates).
+async function refreshData(){
+  if(!window.__firebaseReady) return false;
+  try{
+    const snap = await window.__getDoc(window.__docRef);
+    if(snap.exists()) DATA = normalizeData(snap.data());
+    return true;
+  }catch(e){
+    console.error('Firestore refresh error', e);
+    return false;
+  }
+}
+
+// Locate a ticket (and its registration) by id in the current DATA.
+function findTicket(ticketId){
+  for(const reg of DATA.registrations){
+    const found = reg.tickets.find(x => x.ticketId === ticketId);
+    if(found) return { reg, ticket: found };
+  }
+  return { reg: null, ticket: null };
+}
+
+// Shared redemption step: refresh, re-find, guard against double-redeem, save.
+// Returns 'ok' | 'already' | 'notfound' | 'savefailed'.
+async function redeemTicket(ticketId){
+  await refreshData();
+  const { reg, ticket } = findTicket(ticketId);
+  if(!ticket) return 'notfound';
+  if(ticket.redeemed) return 'already';
+  const prevPayment = reg.paymentStatus;
+  ticket.redeemed = true;
+  ticket.redeemedAt = new Date().toISOString();
+  if(reg.paymentStatus !== 'paid') reg.paymentStatus = 'paid';
+  const ok = await saveData();
+  if(!ok){
+    ticket.redeemed = false;
+    ticket.redeemedAt = null;
+    reg.paymentStatus = prevPayment;
+    return 'savefailed';
+  }
+  return 'ok';
 }
 
 function fmtMoney(n){ return '₹' + Number(n).toLocaleString('en-IN'); }
@@ -347,7 +394,8 @@ function renderAll(){
   if(currentTab === 'admin') renderAdmin();
 }
 
-function renderTicketView(ticketId){
+function renderTicketView(ticketId, opts){
+  opts = opts || {};
   const view = document.getElementById('ticket-view');
   let r = null, t = null;
   for(const reg of DATA.registrations){
@@ -395,8 +443,14 @@ function renderTicketView(ticketId){
   });
 
   const redeemZone = document.getElementById('ticket-redeem-zone');
-  if(t.redeemed){
-    redeemZone.innerHTML = `<div class="scan-result ok" style="margin-top:0;"><b>Already redeemed</b>${t.redeemedAt ? ' at ' + new Date(t.redeemedAt).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}) : ''}.</div>`;
+  const redeemedTime = t.redeemedAt ? new Date(t.redeemedAt).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}) : null;
+  if(t.redeemed && opts.justRedeemed){
+    redeemZone.innerHTML = `<div class="scan-result ok" style="margin-top:0;">
+      <b>Entry confirmed</b> for ${esc(r.name)} — ${esc(t.ticketId)}${redeemedTime ? ' at ' + redeemedTime : ''}.<br>
+      <span class="small-note">Household now at ${redeemedCount}/${total} redeemed.</span>
+    </div>`;
+  }else if(t.redeemed){
+    redeemZone.innerHTML = `<div class="scan-result warn" style="margin-top:0;"><b>Already redeemed</b>${redeemedTime ? ' at ' + redeemedTime : ''}. This pass has already been used for entry.</div>`;
   }else{
     redeemZone.innerHTML = `
       <label>Organizer PIN to redeem at the door</label>
@@ -404,13 +458,19 @@ function renderTicketView(ticketId){
       <button class="primary" id="ticket-redeem-btn" style="max-width:240px;">Confirm entry & redeem</button>
     `;
     document.getElementById('ticket-redeem-btn').addEventListener('click', async () => {
+      const btn = document.getElementById('ticket-redeem-btn');
       const pin = document.getElementById('ticket-pin').value.trim();
       if(pin !== DATA.config.adminPin){ alert('Incorrect PIN.'); return; }
-      t.redeemed = true;
-      t.redeemedAt = new Date().toISOString();
-      if(r.paymentStatus !== 'paid') r.paymentStatus = 'paid';
-      await saveData();
-      renderTicketView(ticketId);
+      btn.disabled = true; btn.textContent = 'Redeeming…';
+      const result = await redeemTicket(ticketId);
+      if(result === 'savefailed'){
+        btn.disabled = false;
+        btn.textContent = 'Confirm entry & redeem';
+        return; // saveData already alerted; leave the form up to retry
+      }
+      // 'ok' → show confirmation; 'already' → someone already used it;
+      // 'notfound' → registration was removed. renderTicketView handles each.
+      renderTicketView(ticketId, { justRedeemed: result === 'ok' });
     });
   }
 }
@@ -1057,12 +1117,25 @@ async function handleCouponFound(ticketId){
     </div>
   `;
   document.getElementById('confirm-redeem').addEventListener('click', async () => {
-    t.redeemed = true;
-    t.redeemedAt = new Date().toISOString();
-    if(r.paymentStatus !== 'paid') r.paymentStatus = 'paid';
-    await saveData();
-    const progress = ticketProgress(r);
-    box.innerHTML = `<div class="scan-result ok"><b>Entry confirmed</b> for ${esc(r.name)} — ${t.ticketId}. Household now at ${progress.redeemedCount}/${progress.total} redeemed.</div>`;
+    const btn = document.getElementById('confirm-redeem');
+    btn.disabled = true; btn.textContent = 'Redeeming…';
+    const result = await redeemTicket(ticketId);
+    if(result === 'savefailed'){
+      btn.disabled = false;
+      btn.textContent = 'Confirm entry & redeem';
+      return;
+    }
+    if(result === 'notfound'){
+      box.innerHTML = `<div class="scan-result warn"><b>Not found.</b> No ticket matches ${esc(ticketId)}.</div>`;
+      return;
+    }
+    const { reg, ticket } = findTicket(ticketId);
+    const progress = ticketProgress(reg);
+    if(result === 'already'){
+      box.innerHTML = `<div class="scan-result warn"><b>Already redeemed.</b> ${esc(reg.name)}'s ticket ${esc(ticket.ticketId)} was already used${ticket.redeemedAt ? ' at ' + new Date(ticket.redeemedAt).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}) : ''}.</div>`;
+      return;
+    }
+    box.innerHTML = `<div class="scan-result ok"><b>Entry confirmed</b> for ${esc(reg.name)} — ${esc(ticket.ticketId)}. Household now at ${progress.redeemedCount}/${progress.total} redeemed.</div>`;
   });
 }
 
