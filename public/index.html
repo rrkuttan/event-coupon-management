@@ -367,6 +367,41 @@ function paintTicker(){
   wrap.hidden = false;
 }
 
+// The door-redeem control for a single ticket: PIN + "Confirm entry & redeem",
+// or a status line if already redeemed. This is the exact flow a resident hits
+// when they open their scanned QR (?ticket=…); reused by the whole-coupon view
+// (?coupon=…). `rerender(result)` refreshes the surrounding view after a redeem.
+function wireTicketRedeemZone(zoneEl, ticketId, justRedeemed, rerender){
+  const { reg: r, ticket: t } = findTicket(ticketId);
+  if(!t){ zoneEl.innerHTML = ''; return; }
+  const time = t.redeemedAt ? new Date(t.redeemedAt).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}) : null;
+  if(t.redeemed && justRedeemed){
+    const p = ticketProgress(r);
+    zoneEl.innerHTML = `<div class="scan-result ok" style="margin-top:0;">
+      <b>Entry confirmed</b> for ${esc(r.name)} — ${esc(t.ticketId)}${time ? ' at ' + time : ''}.<br>
+      <span class="small-note">Household now at ${p.redeemedCount}/${p.total} redeemed.</span>
+    </div>`;
+    return;
+  }
+  if(t.redeemed){
+    zoneEl.innerHTML = `<div class="scan-result warn" style="margin-top:0;"><b>Already redeemed</b>${time ? ' at ' + time : ''}. This pass has already been used for entry.</div>`;
+    return;
+  }
+  zoneEl.innerHTML = `
+    <label>Organizer PIN to redeem at the door</label>
+    <input type="password" placeholder="PIN" style="max-width:160px;">
+    <button class="primary" style="max-width:240px;">Confirm entry & redeem</button>`;
+  const input = zoneEl.querySelector('input');
+  const btn = zoneEl.querySelector('button');
+  btn.addEventListener('click', async () => {
+    if(input.value.trim() !== DATA.config.adminPin){ alert('Incorrect PIN.'); return; }
+    btn.disabled = true; btn.textContent = 'Redeeming…';
+    const result = await redeemTicket(ticketId);
+    if(result === 'savefailed'){ btn.disabled = false; btn.textContent = 'Confirm entry & redeem'; return; }
+    rerender(result);
+  });
+}
+
 function renderTicketView(ticketId, opts){
   opts = opts || {};
   const view = document.getElementById('ticket-view');
@@ -415,43 +450,19 @@ function renderTicketView(ticketId, opts){
     correctLevel: QRCode.CorrectLevel.M
   });
 
-  const redeemZone = document.getElementById('ticket-redeem-zone');
-  const redeemedTime = t.redeemedAt ? new Date(t.redeemedAt).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}) : null;
-  if(t.redeemed && opts.justRedeemed){
-    redeemZone.innerHTML = `<div class="scan-result ok" style="margin-top:0;">
-      <b>Entry confirmed</b> for ${esc(r.name)} — ${esc(t.ticketId)}${redeemedTime ? ' at ' + redeemedTime : ''}.<br>
-      <span class="small-note">Household now at ${redeemedCount}/${total} redeemed.</span>
-    </div>`;
-  }else if(t.redeemed){
-    redeemZone.innerHTML = `<div class="scan-result warn" style="margin-top:0;"><b>Already redeemed</b>${redeemedTime ? ' at ' + redeemedTime : ''}. This pass has already been used for entry.</div>`;
-  }else{
-    redeemZone.innerHTML = `
-      <label>Organizer PIN to redeem at the door</label>
-      <input id="ticket-pin" type="password" placeholder="PIN" style="max-width:160px;">
-      <button class="primary" id="ticket-redeem-btn" style="max-width:240px;">Confirm entry & redeem</button>
-    `;
-    document.getElementById('ticket-redeem-btn').addEventListener('click', async () => {
-      const btn = document.getElementById('ticket-redeem-btn');
-      const pin = document.getElementById('ticket-pin').value.trim();
-      if(pin !== DATA.config.adminPin){ alert('Incorrect PIN.'); return; }
-      btn.disabled = true; btn.textContent = 'Redeeming…';
-      const result = await redeemTicket(ticketId);
-      if(result === 'savefailed'){
-        btn.disabled = false;
-        btn.textContent = 'Confirm entry & redeem';
-        return; // saveData already alerted; leave the form up to retry
-      }
-      // 'ok' → show confirmation; 'already' → someone already used it;
-      // 'notfound' → registration was removed. renderTicketView handles each.
-      renderTicketView(ticketId, { justRedeemed: result === 'ok' });
-    });
-  }
+  wireTicketRedeemZone(
+    document.getElementById('ticket-redeem-zone'),
+    ticketId,
+    !!opts.justRedeemed,
+    result => renderTicketView(ticketId, { justRedeemed: result === 'ok' })
+  );
 }
 
-// Deep-linked whole-coupon view (?coupon=ONM-0007) — used by the payment-
-// confirmation WhatsApp message. Shows the coupon, its QR passes, and the
-// current payment status.
-function renderCouponView(couponNumber){
+// Deep-linked whole-coupon view (?coupon=ONM-0007), opened from the payment-
+// confirmation WhatsApp message. Shows the coupon and, per member, the same
+// PIN + "Confirm entry & redeem" control the resident hits when they scan a QR.
+function renderCouponView(couponNumber, opts){
+  opts = opts || {};   // { justRedeemed: '<ticketId>' }
   const view = document.getElementById('ticket-view');
   const norm = s => String(s || '').toLowerCase().replace(/[\s-]/g, '');
   const r = DATA.registrations.find(x => norm(x.couponNumber) === norm(couponNumber));
@@ -460,20 +471,52 @@ function renderCouponView(couponNumber){
     view.innerHTML = `<div class="card"><div class="empty">No coupon found for "${esc(couponNumber)}".</div></div>${backLink}`;
     return;
   }
+  const { redeemedCount, total } = ticketProgress(r);
   const banner = r.paymentStatus === 'paid'
-    ? `<div class="scan-result ok" style="margin-top:0;"><b>Payment confirmed.</b> Your coupon is active — show the QR passes below at the entrance.</div>`
-    : `<div class="scan-result warn" style="margin-top:0;"><b>Payment pending.</b> Your coupon activates once the organizer confirms payment.</div>`;
+    ? `<div class="scan-result ok" style="margin-top:0;"><b>Payment confirmed.</b> This coupon is active for entry.</div>`
+    : `<div class="scan-result warn" style="margin-top:0;"><b>Payment pending.</b> The coupon activates once the organizer confirms payment.</div>`;
   view.innerHTML = `
     ${banner}
-    ${couponCardHTML(r)}
+    <div class="coupon">
+      <div class="head">
+        <div class="title">Onam Sadya Entry Pass</div>
+        <div class="no">${esc(r.couponNumber)}</div>
+      </div>
+      <div class="body" style="display:block;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+          <div><span class="lbl">Name</span><br>${esc(r.name)}</div>
+          <div style="text-align:right;">${overallStatusBadge(r)}</div>
+        </div>
+        <div style="font-size:12px;color:var(--muted);margin-top:4px;">${r.flat ? 'Flat ' + esc(r.flat) + ' · ' : ''}${r.members} member(s) · ${fmtMoney(r.amount)} · ${redeemedCount}/${total} redeemed · Valid ${esc(DATA.config.validityLabel)}</div>
+      </div>
+      ${r.tickets.map(t => `
+        <div class="divider-dash"></div>
+        <div style="padding:14px 16px;">
+          <div style="display:flex;gap:14px;align-items:center;">
+            <div class="qr-frame" id="qr-${t.ticketId}" style="padding:6px;flex-shrink:0;"></div>
+            <div style="flex:1;min-width:0;">
+              <div class="mono" style="font-size:12.5px;font-weight:600;">${esc(t.ticketId)}</div>
+              <div style="font-size:12px;color:var(--muted);">Member ${t.seq} of ${r.members}</div>
+            </div>
+          </div>
+          <div class="ticket-redeem-zone" data-ticket="${esc(t.ticketId)}" style="margin-top:12px;"></div>
+        </div>
+      `).join('')}
+    </div>
     <p class="small-note" style="text-align:center;">${esc(QR_INFO)}</p>
     ${backLink}`;
-  r.tickets.forEach(t => renderTicketQR(t));
+  r.tickets.forEach(t => {
+    renderTicketQR(t);
+    const zone = view.querySelector(`.ticket-redeem-zone[data-ticket="${t.ticketId}"]`);
+    wireTicketRedeemZone(zone, t.ticketId, opts.justRedeemed === t.ticketId,
+      result => renderCouponView(couponNumber, { justRedeemed: result === 'ok' ? t.ticketId : null }));
+  });
 }
 
-// WhatsApp link the admin fires when marking a coupon paid.
+// WhatsApp link the admin fires when marking a coupon paid. Ends with the
+// coupon link labelled "Display Coupon" — nothing after it.
 function paymentConfirmWaLink(r){
-  const msg = `Onam Sadya 2026\nPayment of ${fmtMoney(r.amount)} (total coupon amount) confirmed for coupon ${r.couponNumber}. Check status at the link — it opens your coupon and entry passes with the payment status:\n${couponUrl(r.couponNumber)}`;
+  const msg = `Onam Sadya 2026\nPayment of ${fmtMoney(r.amount)} (total coupon amount) confirmed for coupon ${r.couponNumber}.\nDisplay Coupon → ${couponUrl(r.couponNumber)}`;
   const digits = String(r.phone || '').replace(/\D/g, '');
   const intl = digits.length === 10 ? '91' + digits : digits;
   return `https://wa.me/${intl}?text=${encodeURIComponent(msg)}`;
@@ -979,7 +1022,7 @@ function renderAdminRegistrations(c){
         </tbody>
       </table>
     </div>
-    <p class="small-note">“Mark Paid” confirms with you, then opens WhatsApp with a payment-confirmation message for the resident (with a link to their coupon). “WhatsApp” sends their entry-pass PDF.</p>
+    <p class="small-note">"Mark Paid" confirms with you, then opens WhatsApp with a payment-confirmation message for the resident ending in a "Display Coupon" link that opens their passes and the door-redeem flow. "WhatsApp" sends their entry-pass PDF.</p>
   `;
   c.querySelectorAll('[data-pay]').forEach(b => b.addEventListener('click', async () => {
     const r = DATA.registrations.find(x => x.id === b.dataset.pay);
