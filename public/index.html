@@ -779,7 +779,7 @@ function getQRDataUrl(text){
 function resultsWaText(list){
   const blocks = list.map(r => {
     const tl = r.tickets.map(t => `  ${t.ticketId}`).join('\n');
-    return `${r.couponNumber} · ${r.name}${r.flat ? ' · Flat ' + r.flat : ''}\n${r.members} member(s) · ₹${r.amount}\n${tl}`;
+    return `${r.couponNumber} · ${r.name}${r.flat ? ' · Flat ' + r.flat : ''}\n${r.members} member(s)\n${tl}`;
   }).join('\n\n');
   const heading = list.length === 1 ? 'your entry passes' : `${list.length} coupons`;
   return `Onam Sadya 2026 — ${heading}\nValid: ${DATA.config.validityLabel}\n\n${blocks}\n\n${QR_INFO}\nEvery member's QR pass is in the attached PDF.`;
@@ -836,8 +836,7 @@ async function buildResultsPdf(list){
     const meta = [
       r.flat ? `Flat ${r.flat}` : null,
       `Phone ${r.phone}`,
-      `${r.members} member(s)`,
-      `₹${r.amount}`
+      `${r.members} member(s)`
     ].filter(Boolean).join('   ·   ');
     doc.text(meta, M, y); y += 18;
     doc.setTextColor(0);
@@ -934,6 +933,7 @@ function renderAdmin(){
       <button data-s="events" class="${adminSubtab==='events'?'active':''}">Cultural Programs</button>
       <button data-s="redeem" class="${adminSubtab==='redeem'?'active':''}">Redeem Entry</button>
       <button data-s="settlement" class="${adminSubtab==='settlement'?'active':''}">Settlement</button>
+      <button data-s="settings" class="${adminSubtab==='settings'?'active':''}">Settings</button>
     </div>
     <div id="admin-content"></div>
   `;
@@ -947,6 +947,41 @@ function renderAdmin(){
   if(adminSubtab === 'events') renderAdminEvents(c);
   if(adminSubtab === 'redeem') renderAdminRedeem(c);
   if(adminSubtab === 'settlement') renderAdminSettlement(c);
+  if(adminSubtab === 'settings') renderAdminSettings(c);
+}
+
+function renderAdminSettings(c){
+  const price = DATA.config.pricePerHead;
+  const pending = DATA.registrations.filter(r => r.paymentStatus !== 'paid');
+  const paidCount = DATA.registrations.length - pending.length;
+  c.innerHTML = `
+    <div class="card">
+      <h3 style="margin-top:0;">Event settings</h3>
+      <label>Price per coupon (per head)</label>
+      <input id="cfg-price" type="number" min="1" step="1" value="${price}" style="max-width:160px;">
+      <p class="small-note">Changing this re-prices <b>${pending.length}</b> unpaid coupon(s) to the new amount. <b>${paidCount}</b> paid coupon(s) stay unchanged. New registrations use the new price straight away.</p>
+      <button class="primary" id="cfg-save-price" style="max-width:200px;">Save price</button>
+      <div id="cfg-result"></div>
+    </div>
+  `;
+  document.getElementById('cfg-save-price').addEventListener('click', async () => {
+    const input = document.getElementById('cfg-price');
+    const next = parseInt(input.value, 10);
+    if(!Number.isInteger(next) || next <= 0 || next > 100000){
+      alert('Enter a whole number greater than 0.');
+      return;
+    }
+    const cur = DATA.config.pricePerHead;
+    if(next === cur){ alert('Price unchanged.'); return; }
+    const toReprice = DATA.registrations.filter(r => r.paymentStatus !== 'paid');
+    if(!confirm(`Set the price to ₹${next} per coupon?\n\n${toReprice.length} unpaid coupon(s) will be updated to ₹${next} × members. Paid coupons are unchanged.`)) return;
+    DATA.config.pricePerHead = next;
+    toReprice.forEach(r => { r.amount = r.members * next; });
+    await saveData();
+    renderAdminSettings(c);
+    document.getElementById('cfg-result').innerHTML =
+      `<div class="scan-result ok"><b>Price set to ₹${next}.</b> ${toReprice.length} unpaid coupon(s) re-priced.</div>`;
+  });
 }
 
 function computeStats(){
