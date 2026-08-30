@@ -472,11 +472,7 @@ function renderCouponView(couponNumber, opts){
     return;
   }
   const { redeemedCount, total } = ticketProgress(r);
-  const banner = r.paymentStatus === 'paid'
-    ? `<div class="scan-result ok" style="margin-top:0;"><b>Payment confirmed.</b> This coupon is active for entry.</div>`
-    : `<div class="scan-result warn" style="margin-top:0;"><b>Payment pending.</b> The coupon activates once the organizer confirms payment.</div>`;
   view.innerHTML = `
-    ${banner}
     <div class="coupon">
       <div class="head">
         <div class="title">Onam Sadya Entry Pass</div>
@@ -487,7 +483,7 @@ function renderCouponView(couponNumber, opts){
           <div><span class="lbl">Name</span><br>${esc(r.name)}</div>
           <div style="text-align:right;">${overallStatusBadge(r)}</div>
         </div>
-        <div style="font-size:12px;color:var(--muted);margin-top:4px;">${r.flat ? 'Flat ' + esc(r.flat) + ' · ' : ''}${r.members} member(s) · ${fmtMoney(r.amount)} · ${redeemedCount}/${total} redeemed · Valid ${esc(DATA.config.validityLabel)}</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:4px;">${r.flat ? 'Flat ' + esc(r.flat) + ' · ' : ''}${r.members} member(s) · ${fmtMoney(r.amount)} · ${r.paymentStatus === 'paid' ? 'Paid' : 'Payment pending'} · ${redeemedCount}/${total} redeemed · Valid ${esc(DATA.config.validityLabel)}</div>
       </div>
       ${r.tickets.map(t => `
         <div class="divider-dash"></div>
