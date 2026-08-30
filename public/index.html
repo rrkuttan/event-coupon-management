@@ -966,8 +966,11 @@ function renderAdminEvents(c){
   c.innerHTML = `
     <div class="card">
       <h3 style="margin-top:0;">Cultural programs</h3>
-      <p class="small-note">Shown on every resident's coupon in real time — update the lineup any time.</p>
+      <p class="small-note">Shown live on the Home page programme ticker. Use the arrows to reorder, Edit to change a time or title.</p>
       <div id="events-list"></div>
+    </div>
+    <div class="card">
+      <h3 style="margin-top:0;font-size:15px;">Add a program</h3>
       <label>Time</label>
       <input id="ev-time" placeholder="e.g. 2:00 PM">
       <label>Program title</label>
@@ -976,30 +979,65 @@ function renderAdminEvents(c){
     </div>
   `;
   const list = document.getElementById('events-list');
+  let editingId = null;
+
   const paint = () => {
-    list.innerHTML = DATA.culturalEvents.length === 0
-      ? `<div class="empty">No programs added yet.</div>`
-      : DATA.culturalEvents.map(e => `
+    const evs = DATA.culturalEvents;
+    if(evs.length === 0){ list.innerHTML = `<div class="empty">No programs added yet.</div>`; return; }
+    list.innerHTML = evs.map((e, i) => editingId === e.id ? `
+        <div class="event-row event-row--edit">
+          <input class="ev-edit-time" value="${esc(e.time)}" placeholder="Time" style="flex:0 0 96px;">
+          <input class="ev-edit-title" value="${esc(e.title)}" placeholder="Program title" style="flex:1 1 140px;">
+          <span style="display:flex;gap:6px;flex-shrink:0;">
+            <button class="pill-btn paid" data-save="${e.id}">Save</button>
+            <button class="pill-btn pending" data-cancel="1">Cancel</button>
+          </span>
+        </div>` : `
         <div class="event-row">
-          <div><span class="mono" style="color:var(--muted);font-size:12px;">${esc(e.time)}</span> — ${esc(e.title)}</div>
-          <button class="ghost" data-rm="${e.id}">Remove</button>
-        </div>
-      `).join('');
+          <div style="flex:1 1 100%;min-width:0;"><span class="mono" style="color:var(--muted);font-size:12px;">${esc(e.time)}</span> — ${esc(e.title)}</div>
+          <div class="event-row-actions">
+            <button class="ico-btn" data-mv="up" data-id="${e.id}"${i === 0 ? ' disabled' : ''} aria-label="Move up">▲</button>
+            <button class="ico-btn" data-mv="down" data-id="${e.id}"${i === evs.length - 1 ? ' disabled' : ''} aria-label="Move down">▼</button>
+            <button class="ghost" data-edit="${e.id}">Edit</button>
+            <button class="ghost" data-rm="${e.id}">Remove</button>
+          </div>
+        </div>`).join('');
+
+    list.querySelectorAll('[data-edit]').forEach(b => b.addEventListener('click', () => { editingId = b.dataset.edit; paint(); }));
+    list.querySelectorAll('[data-cancel]').forEach(b => b.addEventListener('click', () => { editingId = null; paint(); }));
+    list.querySelectorAll('[data-save]').forEach(b => b.addEventListener('click', async () => {
+      const row = b.closest('.event-row');
+      const title = row.querySelector('.ev-edit-title').value.trim();
+      if(!title){ alert('Enter a program title.'); return; }
+      const ev = DATA.culturalEvents.find(x => x.id === b.dataset.save);
+      if(ev){ ev.time = row.querySelector('.ev-edit-time').value.trim() || 'TBA'; ev.title = title; }
+      editingId = null; paint(); await saveData();
+    }));
     list.querySelectorAll('[data-rm]').forEach(b => b.addEventListener('click', async () => {
+      if(!confirm('Remove this program?')) return;
       DATA.culturalEvents = DATA.culturalEvents.filter(x => x.id !== b.dataset.rm);
-      await saveData(); paint();
+      if(editingId === b.dataset.rm) editingId = null;
+      paint(); await saveData();
+    }));
+    list.querySelectorAll('[data-mv]').forEach(b => b.addEventListener('click', async () => {
+      const arr = DATA.culturalEvents;
+      const idx = arr.findIndex(x => x.id === b.dataset.id);
+      const to = b.dataset.mv === 'up' ? idx - 1 : idx + 1;
+      if(idx < 0 || to < 0 || to >= arr.length) return;
+      [arr[idx], arr[to]] = [arr[to], arr[idx]];
+      paint(); await saveData();
     }));
   };
   paint();
+
   document.getElementById('ev-add').addEventListener('click', async () => {
     const time = document.getElementById('ev-time').value.trim();
     const title = document.getElementById('ev-title').value.trim();
     if(!title){ alert('Enter a program title.'); return; }
     DATA.culturalEvents.push({ id: 'e' + Date.now(), title, time: time || 'TBA' });
-    await saveData();
     document.getElementById('ev-time').value = '';
     document.getElementById('ev-title').value = '';
-    paint();
+    paint(); await saveData();
   });
 }
 
