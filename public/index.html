@@ -247,16 +247,18 @@ async function redeemTicket(ticketId){
 function fmtMoney(n){ return '₹' + Number(n).toLocaleString('en-IN'); }
 function esc(s){ return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function ticketUrl(ticketId){ return location.origin + location.pathname + '?ticket=' + encodeURIComponent(ticketId); }
+function couponUrl(couponNumber){ return location.origin + location.pathname + '?coupon=' + encodeURIComponent(couponNumber); }
 
 const TICKET_PARAM = new URLSearchParams(location.search).get('ticket');
-if(TICKET_PARAM){
+const COUPON_PARAM = new URLSearchParams(location.search).get('coupon');
+if(TICKET_PARAM || COUPON_PARAM){
   document.getElementById('topbar').style.display = 'none';
   document.getElementById('tab-home').style.display = 'none';
   document.getElementById('tab-register').style.display = 'none';
   document.getElementById('tab-lookup').style.display = 'none';
   document.getElementById('tab-admin').style.display = 'none';
   document.getElementById('ticket-view').style.display = '';
-  document.getElementById('ticket-view').innerHTML = `<div class="card"><div class="empty">Loading ticket…</div></div>`;
+  document.getElementById('ticket-view').innerHTML = `<div class="card"><div class="empty">Loading…</div></div>`;
 }
 
 const adminLockBtn = document.getElementById('admin-lock');
@@ -293,6 +295,7 @@ document.getElementById('brand-home').addEventListener('click', e => { e.prevent
 
 function renderAll(){
   if(TICKET_PARAM){ if(DATA) renderTicketView(TICKET_PARAM); return; }
+  if(COUPON_PARAM){ if(DATA) renderCouponView(COUPON_PARAM); return; }
   if(currentTab === 'home'){ renderHome(); return; }
   if(!DATA) return;
   if(currentTab === 'register') renderRegister();
@@ -443,6 +446,37 @@ function renderTicketView(ticketId, opts){
       renderTicketView(ticketId, { justRedeemed: result === 'ok' });
     });
   }
+}
+
+// Deep-linked whole-coupon view (?coupon=ONM-0007) — used by the payment-
+// confirmation WhatsApp message. Shows the coupon, its QR passes, and the
+// current payment status.
+function renderCouponView(couponNumber){
+  const view = document.getElementById('ticket-view');
+  const norm = s => String(s || '').toLowerCase().replace(/[\s-]/g, '');
+  const r = DATA.registrations.find(x => norm(x.couponNumber) === norm(couponNumber));
+  const backLink = `<p style="text-align:center;"><a href="${location.pathname}" style="color:var(--leaf);font-size:12.5px;">Go to full site</a></p>`;
+  if(!r){
+    view.innerHTML = `<div class="card"><div class="empty">No coupon found for "${esc(couponNumber)}".</div></div>${backLink}`;
+    return;
+  }
+  const banner = r.paymentStatus === 'paid'
+    ? `<div class="scan-result ok" style="margin-top:0;"><b>Payment confirmed.</b> Your coupon is active — show the QR passes below at the entrance.</div>`
+    : `<div class="scan-result warn" style="margin-top:0;"><b>Payment pending.</b> Your coupon activates once the organizer confirms payment.</div>`;
+  view.innerHTML = `
+    ${banner}
+    ${couponCardHTML(r)}
+    <p class="small-note" style="text-align:center;">${esc(QR_INFO)}</p>
+    ${backLink}`;
+  r.tickets.forEach(t => renderTicketQR(t));
+}
+
+// WhatsApp link the admin fires when marking a coupon paid.
+function paymentConfirmWaLink(r){
+  const msg = `Onam Sadya 2026\nPayment of ${fmtMoney(r.amount)} (total coupon amount) confirmed for coupon ${r.couponNumber}. Check status at the link — it opens your coupon and entry passes with the payment status:\n${couponUrl(r.couponNumber)}`;
+  const digits = String(r.phone || '').replace(/\D/g, '');
+  const intl = digits.length === 10 ? '91' + digits : digits;
+  return `https://wa.me/${intl}?text=${encodeURIComponent(msg)}`;
 }
 
 /* ---------------- REGISTER TAB ---------------- */
@@ -945,11 +979,22 @@ function renderAdminRegistrations(c){
         </tbody>
       </table>
     </div>
+    <p class="small-note">“Mark Paid” confirms with you, then opens WhatsApp with a payment-confirmation message for the resident (with a link to their coupon). “WhatsApp” sends their entry-pass PDF.</p>
   `;
   c.querySelectorAll('[data-pay]').forEach(b => b.addEventListener('click', async () => {
     const r = DATA.registrations.find(x => x.id === b.dataset.pay);
-    r.paymentStatus = r.paymentStatus === 'paid' ? 'pending' : 'paid';
-    await saveData(); renderAdminRegistrations(c);
+    const goingPaid = r.paymentStatus !== 'paid';
+    if(goingPaid && !confirm(`Mark ${r.couponNumber} paid and send a WhatsApp confirmation to ${r.name} (${r.phone})?`)) return;
+    // Open the WhatsApp tab synchronously (within the click) so it isn't blocked
+    // as a pop-up; point it at the message only once the save succeeds.
+    const waWin = goingPaid ? window.open('', '_blank') : null;
+    r.paymentStatus = goingPaid ? 'paid' : 'pending';
+    renderAdminRegistrations(c);
+    const ok = await saveData();
+    if(waWin){
+      if(ok) waWin.location.href = paymentConfirmWaLink(r);
+      else waWin.close();
+    }
   }));
   c.querySelectorAll('[data-wa]').forEach(b => b.addEventListener('click', () => {
     const r = DATA.registrations.find(x => x.id === b.dataset.wa);
