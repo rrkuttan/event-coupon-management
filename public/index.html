@@ -308,6 +308,9 @@ const EVENT_INFO = {
   lede: 'Join your Sobha Eternia family for a day of traditional Sadya and cultural celebration — a time to come together, share a meal, and make memories that last.'
 };
 
+// Shown wherever entry-pass QR codes appear (screen + every PDF / WhatsApp message).
+const QR_INFO = 'Your QR code contains your payment status and can be used to redeem entry at the event.';
+
 function renderHome(){
   const el = document.getElementById('tab-home');
   if(el.dataset.built){ paintTicker(); return; }  // hero/about are static — build once, then only refresh the ticker
@@ -329,12 +332,11 @@ function renderHome(){
         <button class="btn-cta" id="home-register">Register now <span aria-hidden="true">&rarr;</span></button>
         <p class="hero-note">Digital QR Pass &middot; One coupon, one scan, at the door</p>
       </div>
+      <section class="ticker" id="home-ticker" aria-label="Cultural programme" hidden></section>
       <div class="hero-art">
         <img src="assets/onam-hero.jpg" alt="An Onam pookalam — a circular carpet of marigold, jasmine and rose petals — beside a traditional Kerala brass lamp" width="520" height="696" loading="eager" fetchpriority="high">
       </div>
     </section>
-
-    <section class="ticker" id="home-ticker" aria-label="Cultural programme" hidden></section>
   `;
   document.getElementById('home-register').addEventListener('click', () => switchTab('register'));
   paintTicker();
@@ -447,7 +449,7 @@ function renderTicketView(ticketId, opts){
 function renderRegister(){
   const el = document.getElementById('tab-register');
   el.innerHTML = `
-    <div class="card">
+    <div class="card" id="reg-form">
       <h2 style="margin-top:0;font-size:19px;">Registration</h2>
       <label>Resident name</label>
       <input id="reg-name" type="text" placeholder="e.g. Anitha Menon">
@@ -467,7 +469,8 @@ function renderRegister(){
         </div>
       </div>
       <button class="primary" id="reg-submit">Generate coupon</button>
-      <p class="small-note">Pay ₹<span id="reg-amount-note">${DATA.config.pricePerHead}</span> via UPI to <b>${esc(DATA.config.upiId)}</b>, or hand cash to the committee. Your coupon activates once payment is confirmed by the organizer.</p>
+     <!-- <p class="small-note">Pay ₹<span id="reg-amount-note">${DATA.config.pricePerHead}</span> via UPI to <b>${esc(DATA.config.upiId)}</b>, or hand cash to the committee. Your coupon activates once payment is confirmed by the organizer.</p>-->
+      <p class="small-note">Payment of ₹<span id="reg-amount-note">${DATA.config.pricePerHead}</span> per coupon will be collected shortly by the committee. Your coupon activates once payment is confirmed by the organizer.</p>
     </div>
     <div id="reg-confirm"></div>
   `;
@@ -510,20 +513,33 @@ function renderRegister(){
     };
     DATA.registrations.push(reg);
     await saveData();
-    document.getElementById('reg-confirm').innerHTML = `
+    // Swap the form out for the confirmation so the coupon + action buttons are
+    // the first thing on screen — no scrolling past the form to find them.
+    document.getElementById('reg-form').style.display = 'none';
+    const confirmEl = document.getElementById('reg-confirm');
+    confirmEl.innerHTML = `
       <div class="card" style="border-color:var(--leaf);">
         <h3 style="margin-top:0;color:var(--leaf);">Registered ✓</h3>
-        <p style="font-size:14px;">Your coupon number is <span class="mono" style="font-weight:600;">${couponNumber}</span> for ${members} member(s), total ${fmtMoney(amount)}.</p>
-        <p class="small-note">You'll get ${members} separate entry pass${members>1?'es':''} — one QR per member, each scanned once at the door. It will show as "Payment Pending" until the organizer confirms your payment.</p>
+        <p style="font-size:14px;margin:0 0 14px;">Coupon <span class="mono" style="font-weight:600;">${couponNumber}</span> — ${members} member(s), total ${fmtMoney(amount)}.</p>
+        ${couponActionsHTML()}
+        <p class="small-note">Shows as "Payment Pending" until the organizer confirms payment.
+          <a href="#" id="reg-again" style="color:var(--leaf);white-space:nowrap;">Register another →</a></p>
       </div>
       ${couponCardHTML(reg)}`;
     reg.tickets.forEach(t => renderTicketQR(t));
-    attachWaButtons([reg]);
+    wireCouponActions(confirmEl, [reg]);
+    window.scrollTo(0, 0);
     document.getElementById('reg-name').value = '';
     document.getElementById('reg-phone').value = '';
     document.getElementById('reg-flat').value = '';
     membersInput.value = '1';
     updateAmount();
+    document.getElementById('reg-again').addEventListener('click', e => {
+      e.preventDefault();
+      confirmEl.innerHTML = '';
+      document.getElementById('reg-form').style.display = '';
+      window.scrollTo(0, 0);
+    });
     if(currentTab === 'admin') renderAdmin();
   });
 }
@@ -574,15 +590,15 @@ async function doLookup(){
 
   const totalTickets = results.reduce((s, r) => s + r.tickets.length, 0);
   box.innerHTML = `
-    <div class="card" style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
-      <div style="font-size:13px;color:var(--muted);">
+    <div class="card">
+      <div style="font-size:13px;color:var(--muted);margin-bottom:10px;">
         ${results.length} coupon${results.length > 1 ? 's' : ''} · ${totalTickets} entry pass${totalTickets > 1 ? 'es' : ''} found
       </div>
-      <button class="secondary" id="wa-results">Send all as WhatsApp PDF</button>
+      ${couponActionsHTML()}
     </div>
-  ` + results.map(r => couponCardHTML(r, { hideWhatsApp: true })).join('');
+  ` + results.map(r => couponCardHTML(r)).join('');
   results.forEach(r => r.tickets.forEach(t => renderTicketQR(t)));
-  document.getElementById('wa-results').addEventListener('click', e => shareResultsWhatsApp(results, e.currentTarget));
+  wireCouponActions(box, results);
 }
 
 function ticketProgress(r){
@@ -601,8 +617,7 @@ function overallStatusBadge(r){
   return `<span class="badge redeemed">Partial — ${redeemedCount}/${total} redeemed</span>`;
 }
 
-function couponCardHTML(r, opts){
-  opts = opts || {};
+function couponCardHTML(r){
   const ticketsHTML = r.tickets.map(t => `
     <div style="display:flex;gap:12px;align-items:center;padding:10px 0;border-bottom:1px solid var(--line);">
       <div class="qr-frame" id="qr-${t.ticketId}" style="padding:6px;"></div>
@@ -633,20 +648,25 @@ function couponCardHTML(r, opts){
         <div class="lbl" style="margin-bottom:2px;">Entry passes — one QR per member, each scanned once</div>
         ${ticketsHTML}
       </div>
-      ${opts.hideWhatsApp ? '' : `
-      <div class="divider-dash"></div>
-      <div style="padding:14px 16px 16px;">
-        <button class="secondary" data-wa="${r.id}" style="width:100%;">Send via WhatsApp</button>
-      </div>`}
     </div>
   `;
 }
 
-function attachWaButtons(list){
-  list.forEach(r => {
-    const btn = document.querySelector(`[data-wa="${r.id}"]`);
-    if(btn) btn.addEventListener('click', () => shareCouponWhatsApp(r, btn));
-  });
+// Download / WhatsApp actions + the QR explainer — shared by the registration
+// confirmation and the My QR Pass results.
+function couponActionsHTML(){
+  return `
+    <div class="coupon-actions">
+      <button class="secondary" data-act="download">Download PDF</button>
+      <button class="secondary" data-act="whatsapp">Send as WhatsApp PDF</button>
+    </div>
+    <p class="small-note" style="margin-top:10px;">${esc(QR_INFO)}</p>`;
+}
+function wireCouponActions(root, list){
+  const dl = root.querySelector('[data-act="download"]');
+  const wa = root.querySelector('[data-act="whatsapp"]');
+  if(dl) dl.addEventListener('click', () => downloadCouponsPdf(list, dl));
+  if(wa) wa.addEventListener('click', () => shareResultsWhatsApp(list, wa));
 }
 
 function renderTicketQR(t){
@@ -682,51 +702,36 @@ function getQRDataUrl(text){
   });
 }
 
-function couponWaMessage(r){
-  const events = DATA.culturalEvents.map(e => `${e.time} — ${e.title}`).join('\n');
-  const ticketLines = r.tickets.map(t => `  ${t.ticketId} — ${t.redeemed ? 'redeemed' : 'not yet redeemed'}`).join('\n');
-  return `Onam Sadya 2026 — your entry coupons\n\nName: ${r.name}\nHousehold coupon: ${r.couponNumber}${r.flat ? `\nFlat: ${r.flat}` : ''}\nMembers: ${r.members}\nAmount: ₹${r.amount}\nValid: ${DATA.config.validityLabel}\n\nShow the matching QR at the lunch counter.\n\nCultural programs:\n${events}`;
-}
-
-async function shareCouponWhatsApp(r, btn){
-  const originalLabel = btn ? btn.textContent : '';
-  if(btn){ btn.textContent = 'Preparing…'; btn.disabled = true; }
-  try{
-    const message = couponWaMessage(r);
-    if(navigator.share){
-      try{
-        const files = [];
-        for(const t of r.tickets){
-          const dataUrl = await getQRDataUrl(ticketUrl(t.ticketId));
-          if(dataUrl){
-            const blob = await (await fetch(dataUrl)).blob();
-            files.push(new File([blob], t.ticketId + '.png', { type: 'image/png' }));
-          }
-        }
-        if(files.length && navigator.canShare && navigator.canShare({ files })){
-          await navigator.share({ files, text: message, title: 'Onam Sadya Coupons' });
-          return;
-        }
-      }catch(shareErr){ /* fall through to WhatsApp link below */ }
-    }
-    const digits = r.phone.replace(/\D/g, '');
-    const intlPhone = digits.length === 10 ? '91' + digits : digits;
-    const waUrl = `https://wa.me/${intlPhone}?text=${encodeURIComponent(message + '\n\n(Open "My QR Pass" in the app and search your number to view/download each QR image.)')}`;
-    window.open(waUrl, '_blank');
-  } finally {
-    if(btn){ btn.textContent = originalLabel; btn.disabled = false; }
-  }
-}
-
-/* ---- Search-results → PDF → WhatsApp ---- */
+/* ---- Coupons → PDF → download / WhatsApp ---- */
 function resultsWaText(list){
-  const events = DATA.culturalEvents.map(e => `${e.time} — ${e.title}`).join('\n');
   const blocks = list.map(r => {
-    const tl = r.tickets.map(t => `  ${t.ticketId} — ${t.redeemed ? 'redeemed' : 'not yet redeemed'}`).join('\n');
-    return `${r.couponNumber} · ${r.name}${r.flat ? ' · Flat ' + r.flat : ''}\n${r.members} member(s) · ₹${r.amount} · ${r.paymentStatus === 'paid' ? 'Paid' : 'Payment pending'}\n${tl}`;
+    const tl = r.tickets.map(t => `  ${t.ticketId}`).join('\n');
+    return `${r.couponNumber} · ${r.name}${r.flat ? ' · Flat ' + r.flat : ''}\n${r.members} member(s) · ₹${r.amount}\n${tl}`;
   }).join('\n\n');
   const heading = list.length === 1 ? 'your entry passes' : `${list.length} coupons`;
-  return `Onam Sadya 2026 — ${heading}\nValid: ${DATA.config.validityLabel}\n\n${blocks}\n\nEvery member's one-time QR pass is in the attached PDF. Show the matching QR at the lunch counter — each one scans once.\n\nCultural programs:\n${events}`;
+  return `Onam Sadya 2026 — ${heading}\nValid: ${DATA.config.validityLabel}\n\n${blocks}\n\n${QR_INFO}\nEvery member's QR pass is in the attached PDF.`;
+}
+
+function couponsPdfName(list){
+  return list.length === 1 ? `onam-sadya-${list[0].couponNumber}.pdf` : 'onam-sadya-coupons.pdf';
+}
+
+async function downloadCouponsPdf(list, btn){
+  const original = btn.textContent;
+  btn.textContent = 'Building PDF…'; btn.disabled = true;
+  try{
+    const blob = await buildResultsPdf(list);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = couponsPdfName(list);
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 4000);
+  }catch(e){
+    console.error('PDF build failed', e);
+    alert('Could not create the PDF. Please try again.');
+  }finally{
+    btn.textContent = original; btn.disabled = false;
+  }
 }
 
 // Builds a PDF: one section per coupon, a grid of ticket QR codes under each.
@@ -740,9 +745,12 @@ async function buildResultsPdf(list){
   const ensure = h => { if(y + h > pageH - M){ doc.addPage(); y = M; } };
 
   doc.setFont('helvetica', 'bold'); doc.setFontSize(16);
-  doc.text('Onam Sadya 2026 — Entry Passes', M, y); y += 20;
+  doc.text('Onam Sadya 2026 — Entry Passes', M, y); y += 19;
   doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(90);
-  doc.text(`Valid ${DATA.config.validityLabel} · ${DATA.config.venue}`, M, y); y += 6;
+  doc.text(`Valid ${DATA.config.validityLabel} · ${DATA.config.venue}`, M, y); y += 15;
+  doc.setFontSize(9);
+  const infoLines = doc.splitTextToSize(QR_INFO, pageW - 2 * M);
+  doc.text(infoLines, M, y); y += infoLines.length * 11;
   doc.setTextColor(0);
 
   for(const r of list){
@@ -756,8 +764,7 @@ async function buildResultsPdf(list){
       r.flat ? `Flat ${r.flat}` : null,
       `Phone ${r.phone}`,
       `${r.members} member(s)`,
-      `₹${r.amount}`,
-      r.paymentStatus === 'paid' ? 'Paid' : 'Payment pending'
+      `₹${r.amount}`
     ].filter(Boolean).join('   ·   ');
     doc.text(meta, M, y); y += 18;
     doc.setTextColor(0);
@@ -774,7 +781,7 @@ async function buildResultsPdf(list){
       doc.setFontSize(8); doc.setFont('helvetica', 'bold'); doc.setTextColor(0);
       doc.text(t.ticketId, x, y + qr + 10);
       doc.setFont('helvetica', 'normal'); doc.setTextColor(90);
-      doc.text(`Member ${t.seq} of ${r.members}${t.redeemed ? ' · redeemed' : ''}`, x, y + qr + 20);
+      doc.text(`Member ${t.seq} of ${r.members}`, x, y + qr + 20);
       doc.setTextColor(0);
       if(col === perRow - 1 || i === r.tickets.length - 1) y += cellH + gap;
     }
@@ -787,7 +794,7 @@ async function shareResultsWhatsApp(list, btn){
   btn.textContent = 'Preparing PDF…'; btn.disabled = true;
   try{
     const blob = await buildResultsPdf(list);
-    const fname = list.length === 1 ? `onam-sadya-${list[0].couponNumber}.pdf` : 'onam-sadya-coupons.pdf';
+    const fname = couponsPdfName(list);
     const file = new File([blob], fname, { type: 'application/pdf' });
     const text = resultsWaText(list);
 
@@ -946,7 +953,7 @@ function renderAdminRegistrations(c){
   }));
   c.querySelectorAll('[data-wa]').forEach(b => b.addEventListener('click', () => {
     const r = DATA.registrations.find(x => x.id === b.dataset.wa);
-    if(r) shareCouponWhatsApp(r, b);
+    if(r) shareResultsWhatsApp([r], b);
   }));
   c.querySelectorAll('[data-del]').forEach(b => b.addEventListener('click', async () => {
     if(!confirm('Remove this registration? This cannot be undone.')) return;
