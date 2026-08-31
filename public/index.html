@@ -676,7 +676,9 @@ async function doLookup(){
       </div>
       ${couponActionsHTML()}
     </div>
-  ` + results.map(r => couponCardHTML(r)).join('');
+  ` + results.map(r =>
+    (r.paymentStatus !== 'paid' ? upiPayNoteHTML(r) : '') + couponCardHTML(r)
+  ).join('');
   results.forEach(r => r.tickets.forEach(t => renderTicketQR(t)));
   wireCouponActions(box, results);
 }
