@@ -113,7 +113,10 @@ const DEFAULT_DATA = {
     eventDate: '2026-09-20',
     validityLabel: 'September 20, 2026',
     venue: 'Apartment Clubhouse, Lunch Session',
-    upiId: 'yourapartment@upi',
+    upiPayees: [
+      { name: 'Rishi', flat: '1053', phone: '9611566760' },
+      { name: 'Rakesh', flat: '1013', phone: '9496330727' }
+    ],
     adminPin: '2026',
     nextSeq: 1
   },
@@ -164,6 +167,9 @@ async function loadData(){
 function normalizeData(loaded){
   const d = loaded || {};
   const config = { ...structuredClone(DEFAULT_DATA.config), ...(d.config || {}) };
+  config.upiPayees = (Array.isArray(config.upiPayees) ? config.upiPayees : structuredClone(DEFAULT_DATA.config.upiPayees))
+    .map(p => ({ name: String(p && p.name || '').trim(), flat: String(p && p.flat || '').trim(), phone: String(p && p.phone || '').trim() }))
+    .filter(p => p.phone);
   const culturalEvents = Array.isArray(d.culturalEvents) ? d.culturalEvents : structuredClone(DEFAULT_DATA.culturalEvents);
   const registrations = (Array.isArray(d.registrations) ? d.registrations : []).map(r => {
     let tickets = Array.isArray(r.tickets) ? r.tickets : null;
@@ -499,6 +505,7 @@ function renderCouponView(couponNumber, opts){
         </div>
       `).join('')}
     </div>
+    ${r.paymentStatus !== 'paid' ? upiPayNoteHTML(r) : ''}
     <p class="small-note" style="text-align:center;">${esc(QR_INFO)}</p>
     ${backLink}`;
   r.tickets.forEach(t => {
@@ -542,7 +549,6 @@ function renderRegister(){
         </div>
       </div>
       <button class="primary" id="reg-submit">Generate coupon</button>
-     <!-- <p class="small-note">Pay ₹<span id="reg-amount-note">${DATA.config.pricePerHead}</span> via UPI to <b>${esc(DATA.config.upiId)}</b>, or hand cash to the committee. Your coupon activates once payment is confirmed by the organizer.</p>-->
       <p class="small-note">Payment of ₹<span id="reg-amount-note">${DATA.config.pricePerHead}</span> per coupon will be collected shortly by the committee. Your coupon activates once payment is confirmed by the organizer.</p>
     </div>
     <div id="reg-confirm"></div>
@@ -594,6 +600,7 @@ function renderRegister(){
       <div class="card" style="border-color:var(--leaf);">
         <h3 style="margin-top:0;color:var(--leaf);">Registered ✓</h3>
         <p style="font-size:14px;margin:0 0 14px;">Coupon <span class="mono" style="font-weight:600;">${couponNumber}</span> — ${members} member(s), total ${fmtMoney(amount)}.</p>
+        ${upiPayNoteHTML(reg)}
         ${couponActionsHTML()}
         <p class="small-note">Shows as "Payment Pending" until the organizer confirms payment.
           <a href="#" id="reg-again" style="color:var(--leaf);white-space:nowrap;">Register another →</a></p>
@@ -688,6 +695,23 @@ function overallStatusBadge(r){
     return `<span class="badge redeemed">All redeemed</span>`;
   }
   return `<span class="badge redeemed">Partial — ${redeemedCount}/${total} redeemed</span>`;
+}
+
+// Payment instructions for an unpaid coupon: the committee UPI payees
+// (admin-editable in Settings → Payment collection) plus a reminder to tag the
+// resident's own name + flat, pulled from their registration, in the payment note.
+function upiPayNoteHTML(r){
+  const payees = (DATA.config.upiPayees || []).filter(p => p && p.phone);
+  if(!payees.length) return '';
+  const list = payees.map(p =>
+    `${esc(p.name || 'Committee')}${p.flat ? ' (Flat ' + esc(p.flat) + ')' : ''} on <b>${esc(p.phone)}</b>`
+  ).join(' or ');
+  const who = `${esc(r.name)}${r.flat ? ', Flat ' + esc(r.flat) : ''}`;
+  return `
+    <div class="pay-note">
+      Pay via UPI to ${list}. Ensure you add your Name and Flat number (<b>${who}</b>)
+      in the comment. Note that Payment Status against your coupon will be updated within 24 hours.
+    </div>`;
 }
 
 function couponCardHTML(r){
@@ -963,7 +987,67 @@ function renderAdminSettings(c){
       <button class="primary" id="cfg-save-price" style="max-width:200px;">Save price</button>
       <div id="cfg-result"></div>
     </div>
+    <div class="card">
+      <h3 style="margin-top:0;">Payment collection (UPI)</h3>
+      <p class="small-note">These people are listed on every unpaid coupon (confirmation screen and the shared coupon link) as UPI payees. The resident is told to add their own name and flat in the payment comment.</p>
+      <div id="cfg-payees"></div>
+      <button class="secondary" id="cfg-payee-add" style="max-width:180px;">Add a payee</button>
+      <div style="margin-top:12px;">
+        <button class="primary" id="cfg-save-payees" style="max-width:200px;">Save payees</button>
+      </div>
+      <div id="cfg-payee-result"></div>
+    </div>
   `;
+
+  // ---- Payment collection (UPI payees) ----
+  let payees = (DATA.config.upiPayees || []).map(p => ({ ...p }));
+  const payeeList = document.getElementById('cfg-payees');
+  const paintPayees = () => {
+    payeeList.innerHTML = payees.length ? payees.map((p, i) => `
+      <div class="event-row event-row--edit" data-i="${i}">
+        <input class="pay-name" value="${esc(p.name || '')}" placeholder="Name" style="flex:1 1 110px;">
+        <input class="pay-flat" value="${esc(p.flat || '')}" placeholder="Flat" style="flex:0 0 80px;">
+        <input class="pay-phone" value="${esc(p.phone || '')}" placeholder="10-digit mobile" inputmode="numeric" style="flex:1 1 130px;">
+        <button class="pill-btn pending" data-rm="${i}" style="flex-shrink:0;">Remove</button>
+      </div>`).join('') : `<div class="empty">No payees — residents will see no UPI instructions.</div>`;
+    payeeList.querySelectorAll('[data-rm]').forEach(b => b.addEventListener('click', () => {
+      readPayeeInputs();
+      payees.splice(parseInt(b.dataset.rm, 10), 1);
+      paintPayees();
+    }));
+  };
+  const readPayeeInputs = () => {
+    payeeList.querySelectorAll('.event-row').forEach(row => {
+      const i = parseInt(row.dataset.i, 10);
+      if(!payees[i]) return;
+      payees[i].name = row.querySelector('.pay-name').value.trim();
+      payees[i].flat = row.querySelector('.pay-flat').value.trim();
+      payees[i].phone = row.querySelector('.pay-phone').value.trim();
+    });
+  };
+  paintPayees();
+
+  document.getElementById('cfg-payee-add').addEventListener('click', () => {
+    readPayeeInputs();
+    payees.push({ name: '', flat: '', phone: '' });
+    paintPayees();
+  });
+  document.getElementById('cfg-save-payees').addEventListener('click', async () => {
+    readPayeeInputs();
+    const cleaned = payees.map(p => ({
+      name: p.name.trim(), flat: p.flat.trim(), phone: p.phone.replace(/\D/g, '')
+    }));
+    for(const p of cleaned){
+      if(!/^\d{10}$/.test(p.phone)){ alert(`"${p.name || 'A payee'}" needs a valid 10-digit mobile number.`); return; }
+      if(!p.name){ alert('Every payee needs a name.'); return; }
+    }
+    DATA.config.upiPayees = cleaned;
+    await saveData();
+    renderAdminSettings(c);
+    document.getElementById('cfg-payee-result').innerHTML =
+      `<div class="scan-result ok"><b>Saved.</b> ${cleaned.length} UPI payee(s) will show on unpaid coupons.</div>`;
+  });
+
   document.getElementById('cfg-save-price').addEventListener('click', async () => {
     const input = document.getElementById('cfg-price');
     const next = parseInt(input.value, 10);
