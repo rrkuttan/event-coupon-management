@@ -103,6 +103,7 @@ let DATA = null;
 let currentTab = 'home';
 let adminUnlocked = false;
 let adminSubtab = 'dashboard';
+let payEditId = null;   // registration id whose "Paid To" is being set/edited in the Registrations table
 let scanStream = null;
 let scanRAF = null;
 
@@ -184,7 +185,8 @@ function normalizeData(loaded){
       }
     }
     const flat = typeof r.flat === 'string' ? r.flat : '';
-    return { ...r, flat, tickets };
+    const paidTo = typeof r.paidTo === 'string' ? r.paidTo : '';
+    return { ...r, flat, paidTo, tickets };
   });
   return { config, culturalEvents, registrations };
 }
@@ -248,6 +250,29 @@ async function redeemTicket(ticketId){
     return 'savefailed';
   }
   return 'ok';
+}
+
+// Redeem every not-yet-redeemed ticket in one coupon in a single save.
+// Returns { ok, error?, reg?, redeemed:[ticketId], alreadyCount }.
+async function redeemAllInCoupon(couponNumber){
+  await refreshData();
+  const norm = s => String(s || '').toLowerCase().replace(/[\s-]/g, '');
+  const reg = DATA.registrations.find(x => norm(x.couponNumber) === norm(couponNumber));
+  if(!reg) return { ok: false, error: 'notfound', redeemed: [], alreadyCount: 0 };
+  const toRedeem = reg.tickets.filter(t => !t.redeemed);
+  const alreadyCount = reg.tickets.length - toRedeem.length;
+  if(toRedeem.length === 0) return { ok: true, reg, redeemed: [], alreadyCount };
+  const now = new Date().toISOString();
+  const prevPayment = reg.paymentStatus;
+  toRedeem.forEach(t => { t.redeemed = true; t.redeemedAt = now; });
+  if(reg.paymentStatus !== 'paid') reg.paymentStatus = 'paid';
+  const ok = await saveData();
+  if(!ok){
+    toRedeem.forEach(t => { t.redeemed = false; t.redeemedAt = null; });
+    reg.paymentStatus = prevPayment;
+    return { ok: false, error: 'savefailed', reg, redeemed: [], alreadyCount };
+  }
+  return { ok: true, reg, redeemed: toRedeem.map(t => t.ticketId), alreadyCount };
 }
 
 function fmtMoney(n){ return '₹' + Number(n).toLocaleString('en-IN'); }
@@ -491,6 +516,7 @@ function renderCouponView(couponNumber, opts){
         </div>
         <div style="font-size:12px;color:var(--muted);margin-top:4px;">${r.flat ? 'Flat ' + esc(r.flat) + ' · ' : ''}${r.members} member(s) · ${fmtMoney(r.amount)} · ${r.paymentStatus === 'paid' ? 'Paid' : 'Payment pending'} · ${redeemedCount}/${total} redeemed · Valid ${esc(DATA.config.validityLabel)}</div>
       </div>
+      ${(total - redeemedCount) > 1 ? `<div class="divider-dash"></div><div style="padding:14px 16px;" id="coupon-redeem-all-zone"></div>` : ''}
       ${r.tickets.map(t => `
         <div class="divider-dash"></div>
         <div style="padding:14px 16px;">
@@ -511,9 +537,27 @@ function renderCouponView(couponNumber, opts){
   r.tickets.forEach(t => {
     renderTicketQR(t);
     const zone = view.querySelector(`.ticket-redeem-zone[data-ticket="${t.ticketId}"]`);
-    wireTicketRedeemZone(zone, t.ticketId, opts.justRedeemed === t.ticketId,
+    wireTicketRedeemZone(zone, t.ticketId, opts.justRedeemed === t.ticketId || opts.justRedeemedAll,
       result => renderCouponView(couponNumber, { justRedeemed: result === 'ok' ? t.ticketId : null }));
   });
+
+  const allZone = document.getElementById('coupon-redeem-all-zone');
+  if(allZone){
+    const pendingInCoupon = total - redeemedCount;
+    allZone.innerHTML = `
+      <label>Organizer PIN to redeem the whole coupon at the door</label>
+      <input type="password" placeholder="PIN" style="max-width:160px;">
+      <button class="primary" style="max-width:320px;">Confirm entry & redeem all ${pendingInCoupon} members</button>`;
+    const input = allZone.querySelector('input');
+    const btn = allZone.querySelector('button');
+    btn.addEventListener('click', async () => {
+      if(input.value.trim() !== DATA.config.adminPin){ alert('Incorrect PIN.'); return; }
+      btn.disabled = true; btn.textContent = 'Redeeming…';
+      const res = await redeemAllInCoupon(r.couponNumber);
+      if(res.error === 'savefailed'){ btn.disabled = false; btn.textContent = `Confirm entry & redeem all ${pendingInCoupon} members`; return; }
+      renderCouponView(couponNumber, { justRedeemedAll: res.ok && res.redeemed.length > 0 });
+    });
+  }
 }
 
 // WhatsApp link the admin fires when marking a coupon paid. Ends with the
@@ -587,6 +631,7 @@ function renderRegister(){
       id: 'r' + Date.now() + Math.floor(Math.random()*1000),
       name, phone, flat, members, amount, couponNumber,
       paymentStatus: 'pending',
+      paidTo: '',
       tickets,
       createdAt: new Date().toISOString()
     };
@@ -964,7 +1009,7 @@ function renderAdmin(){
     <div id="admin-content"></div>
   `;
   el.querySelectorAll('.admin-subtabs button').forEach(b => b.addEventListener('click', async () => {
-    adminSubtab = b.dataset.s; stopScanner(); await refreshData(); renderAdmin();
+    adminSubtab = b.dataset.s; payEditId = null; stopScanner(); await refreshData(); renderAdmin();
   }));
 
   const c = document.getElementById('admin-content');
@@ -1077,13 +1122,20 @@ function computeStats(){
   const paidRegs = regs.filter(r=>r.paymentStatus==='paid');
   const amountCollected = paidRegs.reduce((s,r)=>s+r.amount,0);
   const amountExpected = regs.reduce((s,r)=>s+r.amount,0);
+  // Amount collected, split by the "Paid To" mode recorded against each paid
+  // coupon; anything marked paid without a mode falls under "Not Categorised".
+  const collectedByMode = {};
+  paidRegs.forEach(r=>{
+    const key = (r.paidTo && r.paidTo.trim()) || 'Not Categorised';
+    collectedByMode[key] = (collectedByMode[key] || 0) + r.amount;
+  });
   const redeemedMembers = regs.reduce((s,r)=>s+r.tickets.filter(t=>t.redeemed).length,0);
   const fullyRedeemedHouseholds = regs.filter(r=>r.tickets.every(t=>t.redeemed)).length;
   const partiallyRedeemedHouseholds = regs.filter(r=>{
     const c = r.tickets.filter(t=>t.redeemed).length;
     return c > 0 && c < r.tickets.length;
   }).length;
-  return { totalFamilies, totalMembers, amountCollected, amountExpected, redeemedCount: fullyRedeemedHouseholds, partiallyRedeemedHouseholds, redeemedMembers, target: DATA.config.target };
+  return { totalFamilies, totalMembers, amountCollected, amountExpected, collectedByMode, redeemedCount: fullyRedeemedHouseholds, partiallyRedeemedHouseholds, redeemedMembers, target: DATA.config.target };
 }
 
 function renderAdminDashboard(c){
@@ -1099,6 +1151,24 @@ function renderAdminDashboard(c){
       <div class="stat"><div class="v">${s.redeemedCount}</div><div class="l">Households fully redeemed</div></div>
       <div class="stat"><div class="v">${s.partiallyRedeemedHouseholds}</div><div class="l">Households partially redeemed</div></div>
     </div>
+    ${(() => {
+      const modeRows = Object.entries(s.collectedByMode).sort((a,b) => {
+        if(a[0] === 'Not Categorised') return 1;
+        if(b[0] === 'Not Categorised') return -1;
+        return b[1] - a[1];
+      });
+      return `
+    <div class="card">
+      <h3 style="margin-top:0;font-size:15px;">Amount collected by mode</h3>
+      ${modeRows.length ? modeRows.map(([mode, amt]) => `
+        <div style="display:flex;justify-content:space-between;font-size:13.5px;padding:7px 0;border-bottom:1px solid var(--line);">
+          <span>${esc(mode)}</span><span style="font-weight:600;">${fmtMoney(amt)}</span>
+        </div>`).join('') + `
+        <div style="display:flex;justify-content:space-between;font-size:13.5px;padding:9px 0 0;font-weight:700;">
+          <span>Total collected</span><span>${fmtMoney(s.amountCollected)}</span>
+        </div>` : `<p class="small-note">No payments collected yet.</p>`}
+    </div>`;
+    })()}
     <div class="card">
       <div style="display:flex;justify-content:space-between;font-size:13px;font-weight:600;">
         <span>Progress toward target</span><span>${s.totalMembers} / ${s.target}</span>
@@ -1107,6 +1177,41 @@ function renderAdminDashboard(c){
       <p class="small-note">Price per head: ${fmtMoney(DATA.config.pricePerHead)} · Event: ${esc(DATA.config.validityLabel)}</p>
     </div>
   `;
+}
+
+// "Paid To" choices: every configured UPI payee, plus the two cash collectors.
+function paidToOptions(){
+  const upi = (DATA.config.upiPayees || [])
+    .filter(p => p && (p.name || '').trim())
+    .map(p => 'UPI to ' + p.name.trim());
+  return [...upi, 'Cash to Rishi', 'Cash to Rakesh'];
+}
+
+// Payment column cell for one registration — a "Mark Paid" button, the paid
+// badge with who collected it, or the inline "Paid To" picker while editing.
+function payCellHTML(r){
+  if(payEditId === r.id){
+    const current = r.paidTo || '';
+    const opts = paidToOptions();
+    const known = current && opts.includes(current);
+    return `
+      <div class="pay-to-edit">
+        <select class="pay-to-select">
+          <option value="" ${current ? '' : 'selected'} disabled>Paid to…</option>
+          ${opts.map(o => `<option ${o === current ? 'selected' : ''}>${esc(o)}</option>`).join('')}
+          ${current && !known ? `<option selected>${esc(current)}</option>` : ''}
+        </select>
+        <span style="white-space:nowrap;">
+          <button class="pill-btn paid" data-payconfirm="${r.id}">${r.paymentStatus==='paid'?'Save':'Confirm ✓'}</button>
+          <button class="pill-btn pending" data-paycancel="1" style="margin-left:4px;">Cancel</button>
+        </span>
+        ${r.paymentStatus==='paid' ? `<button class="ghost" data-payunset="${r.id}">Mark unpaid</button>` : ''}
+      </div>`;
+  }
+  if(r.paymentStatus === 'paid'){
+    return `<button class="pill-btn paid" data-payedit="${r.id}" title="Change who collected this payment">Paid${r.paidTo ? ' · ' + esc(r.paidTo) : ' · set who'}</button>`;
+  }
+  return `<button class="pill-btn pending" data-paystart="${r.id}">Mark Paid</button>`;
 }
 
 function renderAdminRegistrations(c){
@@ -1125,7 +1230,7 @@ function renderAdminRegistrations(c){
               <td class="mono">${esc(r.phone)}</td>
               <td>${r.members}</td>
               <td>${fmtMoney(r.amount)}</td>
-              <td><button class="pill-btn ${r.paymentStatus==='paid'?'paid':'pending'}" data-pay="${r.id}">${r.paymentStatus==='paid'?'Paid':'Mark Paid'}</button></td>
+              <td>${payCellHTML(r)}</td>
               <td>${(() => {
                 const c = r.tickets.filter(t=>t.redeemed).length;
                 if(c === 0) return '—';
@@ -1139,22 +1244,48 @@ function renderAdminRegistrations(c){
         </tbody>
       </table>
     </div>
-    <p class="small-note">"Mark Paid" confirms with you, then opens WhatsApp with a payment-confirmation message for the resident ending in a "Display Coupon" link that opens their passes and the door-redeem flow. "WhatsApp" sends their entry-pass PDF.</p>
+    <p class="small-note">"Mark Paid" asks who collected the payment (a UPI payee, or cash to Rishi / Rakesh), then opens WhatsApp with a payment-confirmation message for the resident ending in a "Display Coupon" link that opens their passes and the door-redeem flow. Tap the green "Paid · …" button to change who it was paid to, or to mark it unpaid. "WhatsApp" sends their entry-pass PDF.</p>
   `;
-  c.querySelectorAll('[data-pay]').forEach(b => b.addEventListener('click', async () => {
-    const r = DATA.registrations.find(x => x.id === b.dataset.pay);
+  // Open the "Paid To" picker for a still-unpaid coupon, or for an already-paid one.
+  c.querySelectorAll('[data-paystart], [data-payedit]').forEach(b => b.addEventListener('click', () => {
+    payEditId = b.dataset.paystart || b.dataset.payedit;
+    renderAdminRegistrations(c);
+    const sel = c.querySelector('.pay-to-select');
+    if(sel) sel.focus();
+  }));
+  c.querySelectorAll('[data-paycancel]').forEach(b => b.addEventListener('click', () => {
+    payEditId = null;
+    renderAdminRegistrations(c);
+  }));
+  c.querySelectorAll('[data-payconfirm]').forEach(b => b.addEventListener('click', async () => {
+    const r = DATA.registrations.find(x => x.id === b.dataset.payconfirm);
+    if(!r) return;
+    const paidTo = (c.querySelector('.pay-to-select') || {}).value || '';
+    if(!paidTo){ alert('Choose who the payment was made to.'); return; }
     const goingPaid = r.paymentStatus !== 'paid';
-    if(goingPaid && !confirm(`Mark ${r.couponNumber} paid and send a WhatsApp confirmation to ${r.name} (${r.phone})?`)) return;
+    if(goingPaid && !confirm(`Mark ${r.couponNumber} paid (${paidTo}) and send a WhatsApp confirmation to ${r.name} (${r.phone})?`)) return;
     // Open the WhatsApp tab synchronously (within the click) so it isn't blocked
     // as a pop-up; point it at the message only once the save succeeds.
     const waWin = goingPaid ? window.open('', '_blank') : null;
-    r.paymentStatus = goingPaid ? 'paid' : 'pending';
+    r.paidTo = paidTo;
+    if(goingPaid) r.paymentStatus = 'paid';
+    payEditId = null;
     renderAdminRegistrations(c);
     const ok = await saveData();
     if(waWin){
       if(ok) waWin.location.href = paymentConfirmWaLink(r);
       else waWin.close();
     }
+  }));
+  c.querySelectorAll('[data-payunset]').forEach(b => b.addEventListener('click', async () => {
+    const r = DATA.registrations.find(x => x.id === b.dataset.payunset);
+    if(!r) return;
+    if(!confirm(`Mark ${r.couponNumber} unpaid?`)) return;
+    r.paymentStatus = 'pending';
+    r.paidTo = '';
+    payEditId = null;
+    renderAdminRegistrations(c);
+    await saveData();
   }));
   c.querySelectorAll('[data-wa]').forEach(b => b.addEventListener('click', () => {
     const r = DATA.registrations.find(x => x.id === b.dataset.wa);
@@ -1360,40 +1491,94 @@ async function handleRedeemQuery(raw){
 // each redemption re-renders the list (row flips to "Redeemed", counter drops)
 // with a note about the last confirmation. `confirmingId` is the row currently
 // asking for Confirm/Cancel; `note` is {warn, html} or null.
+// `confirmingId` is either a ticketId (single-row Confirm/Cancel) or
+// 'ALL:<couponNumber>' (the coupon-level "Redeem all" Confirm/Cancel).
 function renderRedeemList(box, raw, note, confirmingId){
   const rows = findTicketRows(raw);
   if(rows.length === 0){ box.innerHTML = `<div class="scan-result warn"><b>Nothing to show.</b> Search again.</div>`; return; }
   const pending = rows.filter(x => !x.ticket.redeemed).length;
   const fmtTime = iso => new Date(iso).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'});
+
+  // Group the flat list of {reg, ticket} rows by coupon, keeping first-seen order.
+  const groups = [];
+  const byId = new Map();
+  rows.forEach(({ reg, ticket }) => {
+    let g = byId.get(reg.id);
+    if(!g){ g = { reg, tickets: [] }; byId.set(reg.id, g); groups.push(g); }
+    g.tickets.push(ticket);
+  });
+
+  const ticketRowHTML = (reg, ticket) => {
+    let action;
+    if(ticket.redeemed){
+      action = `<span class="badge redeemed" style="flex-shrink:0;">Redeemed${ticket.redeemedAt ? ' · ' + fmtTime(ticket.redeemedAt) : ''}</span>`;
+    }else if(confirmingId === ticket.ticketId){
+      action = `<span style="flex-shrink:0;white-space:nowrap;">
+        <button class="pill-btn paid" data-confirm="${esc(ticket.ticketId)}">Confirm ✓</button>
+        <button class="pill-btn pending" data-cancel="1" style="margin-left:6px;">Cancel</button>
+      </span>`;
+    }else{
+      action = `<button class="pill-btn paid" data-redeem="${esc(ticket.ticketId)}" style="flex-shrink:0;">Redeem</button>`;
+    }
+    return `<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--line);">
+      <div style="min-width:0;">
+        <div class="mono" style="font-size:12.5px;">${esc(ticket.ticketId)}</div>
+        <div style="font-size:12px;color:var(--muted);">Member ${ticket.seq} of ${reg.members}</div>
+      </div>
+      ${action}
+    </div>`;
+  };
+
+  const groupHTML = ({ reg, tickets }) => {
+    const gPending = tickets.filter(t => !t.redeemed).length;
+    const allKey = 'ALL:' + reg.couponNumber;
+    let allAction = '';
+    if(gPending > 1 && confirmingId === allKey){
+      allAction = `<span style="flex-shrink:0;white-space:nowrap;">
+        <button class="pill-btn paid" data-confirmall="${esc(reg.couponNumber)}">Redeem all ${gPending} ✓</button>
+        <button class="pill-btn pending" data-cancel="1" style="margin-left:6px;">Cancel</button>
+      </span>`;
+    }else if(gPending > 1){
+      allAction = `<button class="pill-btn paid" data-redeemall="${esc(reg.couponNumber)}" style="flex-shrink:0;">Redeem all ${gPending}</button>`;
+    }
+    return `<div style="padding:6px 0 2px;margin-top:6px;border-top:2px solid var(--line);">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:6px 0;">
+        <div style="min-width:0;">
+          <span class="mono" style="font-size:12.5px;font-weight:600;">${esc(reg.couponNumber)}</span>
+          <span style="font-size:12px;color:var(--muted);"> · ${esc(reg.name)}${reg.flat ? ' · Flat ' + esc(reg.flat) : ''}${reg.paymentStatus !== 'paid' ? ' · ⚠ payment pending' : ''}</span>
+        </div>
+        ${allAction}
+      </div>
+      ${tickets.map(t => ticketRowHTML(reg, t)).join('')}
+    </div>`;
+  };
+
   box.innerHTML = `
     ${note ? `<div class="scan-result ${note.warn ? 'warn' : 'ok'}" style="margin-top:14px;">${note.html}</div>` : ''}
     <div class="scan-result ok" style="background:var(--surface);border-color:var(--line);margin-top:${note ? 10 : 14}px;">
-      <div class="lbl" style="margin-bottom:8px;">${rows.length} passes · ${pending ? pending + ' still to redeem — tap each member as they enter' : 'all redeemed'}</div>
-      ${rows.map(({ reg, ticket }) => {
-        const meta = `${esc(reg.name)}${reg.flat ? ' · Flat ' + esc(reg.flat) : ''} · Member ${ticket.seq} of ${reg.members}${reg.paymentStatus !== 'paid' ? ' · ⚠ payment pending' : ''}`;
-        let action;
-        if(ticket.redeemed){
-          action = `<span class="badge redeemed" style="flex-shrink:0;">Redeemed${ticket.redeemedAt ? ' · ' + fmtTime(ticket.redeemedAt) : ''}</span>`;
-        }else if(confirmingId === ticket.ticketId){
-          action = `<span style="flex-shrink:0;white-space:nowrap;">
-            <button class="pill-btn paid" data-confirm="${esc(ticket.ticketId)}">Confirm ✓</button>
-            <button class="pill-btn pending" data-cancel="1" style="margin-left:6px;">Cancel</button>
-          </span>`;
-        }else{
-          action = `<button class="pill-btn paid" data-redeem="${esc(ticket.ticketId)}" style="flex-shrink:0;">Redeem</button>`;
-        }
-        return `<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--line);">
-          <div style="min-width:0;">
-            <div class="mono" style="font-size:12.5px;">${esc(ticket.ticketId)}</div>
-            <div style="font-size:12px;color:var(--muted);">${meta}</div>
-          </div>
-          ${action}
-        </div>`;
-      }).join('')}
+      <div class="lbl" style="margin-bottom:2px;">${rows.length} passes · ${groups.length} coupon${groups.length > 1 ? 's' : ''} · ${pending ? pending + ' still to redeem — tap each member, or "Redeem all" for a whole coupon' : 'all redeemed'}</div>
+      ${groups.map(groupHTML).join('')}
     </div>
   `;
   box.querySelectorAll('[data-redeem]').forEach(b => b.addEventListener('click', () => renderRedeemList(box, raw, note, b.dataset.redeem)));
+  box.querySelectorAll('[data-redeemall]').forEach(b => b.addEventListener('click', () => renderRedeemList(box, raw, note, 'ALL:' + b.dataset.redeemall)));
   box.querySelectorAll('[data-cancel]').forEach(b => b.addEventListener('click', () => renderRedeemList(box, raw, note, null)));
+  box.querySelectorAll('[data-confirmall]').forEach(b => b.addEventListener('click', async () => {
+    b.disabled = true; b.textContent = '…';
+    const cno = b.dataset.confirmall;
+    const res = await redeemAllInCoupon(cno);
+    if(res.error === 'savefailed'){ renderRedeemList(box, raw, note, null); return; }
+    if(res.error === 'notfound'){
+      renderRedeemList(box, raw, { warn: true, html: `<b>Not found.</b> Coupon ${esc(cno)} is no longer in the list — the registration may have been removed.` }, null);
+      return;
+    }
+    const prog = ticketProgress(res.reg);
+    const n = res.redeemed.length;
+    const html = n === 0
+      ? `<b>Nothing to redeem.</b> All ${prog.total} passes on ${esc(res.reg.couponNumber)} were already redeemed.`
+      : `<b>Entry confirmed</b> for ${n} pass${n > 1 ? 'es' : ''} on ${esc(res.reg.couponNumber)} — ${esc(res.reg.name)}. Household now at ${prog.redeemedCount}/${prog.total} redeemed.`;
+    renderRedeemList(box, raw, { warn: n === 0, html }, null);
+  }));
   box.querySelectorAll('[data-confirm]').forEach(b => b.addEventListener('click', async () => {
     b.disabled = true; b.textContent = '…';
     const tid = b.dataset.confirm;
@@ -1435,6 +1620,7 @@ function renderRedeemCandidate(box, ticketId){
     return;
   }
   const { redeemedCount, total } = ticketProgress(r);
+  const pendingInCoupon = total - redeemedCount;
   const paymentWarning = r.paymentStatus !== 'paid'
     ? `<p style="color:var(--maroon);font-weight:600;font-size:13px;">⚠ Payment not yet confirmed for this household.</p>` : '';
   box.innerHTML = `
@@ -1443,8 +1629,30 @@ function renderRedeemCandidate(box, ticketId){
       <span class="small-note">Household progress so far: ${redeemedCount}/${total} redeemed · ${fmtMoney(r.amount)} · ${r.paymentStatus === 'paid' ? 'Payment confirmed' : 'Payment pending'}</span>
       ${paymentWarning}
       <button class="primary" id="confirm-redeem">Confirm entry & redeem</button>
+      ${pendingInCoupon > 1 ? `<button class="secondary" id="confirm-redeem-all" style="margin-top:8px;">Redeem all ${pendingInCoupon} in coupon ${esc(r.couponNumber)}</button>` : ''}
     </div>
   `;
+  const allBtn = document.getElementById('confirm-redeem-all');
+  if(allBtn) allBtn.addEventListener('click', async () => {
+    allBtn.disabled = true; allBtn.textContent = 'Redeeming…';
+    const other = document.getElementById('confirm-redeem');
+    if(other) other.disabled = true;
+    const res = await redeemAllInCoupon(r.couponNumber);
+    if(res.error === 'savefailed'){
+      allBtn.disabled = false; allBtn.textContent = `Redeem all ${pendingInCoupon} in coupon ${r.couponNumber}`;
+      if(other) other.disabled = false;
+      return;
+    }
+    if(res.error === 'notfound'){
+      box.innerHTML = `<div class="scan-result warn"><b>Not found.</b> Coupon ${esc(r.couponNumber)} is no longer registered.</div>`;
+      return;
+    }
+    const prog = ticketProgress(res.reg);
+    const n = res.redeemed.length;
+    box.innerHTML = n === 0
+      ? `<div class="scan-result warn"><b>Nothing to redeem.</b> All ${prog.total} passes on ${esc(res.reg.couponNumber)} were already redeemed.</div>`
+      : `<div class="scan-result ok"><b>Entry confirmed</b> for ${n} pass${n > 1 ? 'es' : ''} on ${esc(res.reg.couponNumber)} — ${esc(res.reg.name)}. Household now at ${prog.redeemedCount}/${prog.total} redeemed.</div>`;
+  });
   document.getElementById('confirm-redeem').addEventListener('click', async () => {
     const btn = document.getElementById('confirm-redeem');
     btn.disabled = true; btn.textContent = 'Redeeming…';
@@ -1486,10 +1694,11 @@ function renderAdminSettlement(c){
     </div>
   `;
   document.getElementById('export-csv').addEventListener('click', () => {
-    const rows = [['Coupon','Ticket','Name','Phone','Flat','Household Members','Household Amount','Payment Status','Redeemed','Redeemed At']];
+    const rows = [['Coupon','Ticket','Name','Phone','Flat','Household Members','Ticket Amount','Payment Status','Paid To','Redeemed','Redeemed At']];
     regs.forEach(r => r.tickets.forEach(t => rows.push([
-      r.couponNumber, t.ticketId, r.name, r.phone, r.flat || '', r.members, r.amount,
-      r.paymentStatus, t.redeemed ? 'Yes' : 'No', t.redeemedAt || ''
+      r.couponNumber, t.ticketId, r.name, r.phone, r.flat || '', r.members,
+      r.members ? Math.round(r.amount / r.members) : r.amount,
+      r.paymentStatus, r.paidTo || '', t.redeemed ? 'Yes' : 'No', t.redeemedAt || ''
     ])));
     const csv = rows.map(row => row.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
     const blob = new Blob([csv], { type: 'text/csv' });

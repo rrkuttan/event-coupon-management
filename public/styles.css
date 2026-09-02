@@ -216,6 +216,9 @@ td{padding:8px 4px;border-bottom:1px solid var(--line);vertical-align:middle;}
 .pill-btn{padding:5px 10px;border-radius:7px;border:none;font-size:11px;font-weight:700;cursor:pointer;}
 .pill-btn.paid{background:var(--leaf);color:var(--on-accent);}
 .pill-btn.pending{background:var(--gold-soft);color:var(--ink);}
+.pay-to-edit{display:flex;flex-direction:column;gap:6px;min-width:170px;}
+.pay-to-edit .pay-to-select{width:100%;padding:7px 9px;font-size:12.5px;border-radius:7px;}
+.pay-to-edit .ghost{align-self:flex-start;font-size:11px;}
 .admin-gate{text-align:center;padding:40px 20px;}
 .admin-subtabs{display:flex;gap:6px;overflow-x:auto;margin-bottom:14px;padding-bottom:2px;}
 .admin-subtabs button{
