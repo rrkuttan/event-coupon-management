@@ -62,30 +62,15 @@ h1,h2,h3,.display{font-family:var(--font-display);}
   padding:14px 16px;border-radius:12px;margin-bottom:16px;font-size:13.5px;line-height:1.5;
 }
 /* — Home page: hero —
-   Mobile: single flex column, order copy → ticker → photo.
-   Desktop: copy | photo side by side (photo stretches + crops to match the
-   copy column's height — see .hero-art img — so the hero fits one screen,
-   no scroll), ticker full-width row beneath both. */
+   Single column at every width. No standalone photo: the Cultural Programs
+   and Onam Sadya panels each carry their own background image instead (see
+   .event-panel-cultural / .event-panel-sadya below) — no image sits outside
+   a panel. */
 .hero{display:flex;flex-direction:column;gap:12px;padding:12px 0 4px;}
 @media(min-width:640px){
-  .hero{
-    display:grid;
-    grid-template-columns:1.05fr .95fr;
-    grid-template-areas:"copy art" "ticker ticker";
-    column-gap:30px;row-gap:18px;
-    padding:18px 0 6px;
-  }
-  .hero-copy{grid-area:copy;}
-  .hero-art{grid-area:art;}          /* default align-items:stretch fills the row height */
-  #home-ticker{grid-area:ticker;}
-}
-.hero-art{margin:0 auto;width:100%;}
-.hero-art img{
-  width:100%;height:100%;object-fit:cover;   /* crop to the available box, never dictate page height */
-  border-radius:18px;display:block;box-shadow:var(--shadow-card);
+  .hero{padding:18px 0 6px;}
 }
 @media(max-width:639px){
-  .hero-art{max-width:260px;height:190px;margin:2px auto 0;}
   .flourish{display:none;}             /* decorative — drop it to keep the panels + ticker high */
   .tagline{margin-bottom:8px;}
   .hero-meta{gap:5px;margin-bottom:10px;}
@@ -112,34 +97,34 @@ h1,h2,h3,.display{font-family:var(--font-display);}
   letter-spacing:.03em;padding:13px 22px;border-radius:10px;text-transform:uppercase;
 }
 .btn-cta:active{background:var(--leaf-light);}
-/* The little banana-leaf-and-sadya glyph on the Purchase Coupons button —
-   a gentle continuous sway, quickening on hover/focus for a playful nudge. */
-.leaf-icon{display:inline-flex;width:20px;height:20px;flex-shrink:0;transform-origin:50% 50%;animation:leaf-sway 2.6s ease-in-out infinite;}
-.btn-cta:hover .leaf-icon,.btn-cta:focus-visible .leaf-icon{animation-duration:.9s;}
-@keyframes leaf-sway{0%,100%{transform:rotate(-7deg);}50%{transform:rotate(7deg);}}
-@media(prefers-reduced-motion:reduce){.leaf-icon{animation:none;}}
 /* Two panels for Cultural Programs and Onam Sadya — same look and feel
    (shared .event-panel base) as the WhatsApp link-preview flyer
    (public/assets/og-flyer.png). Coupons are mentioned only for the Sadya
    lunch, never for performing — that's what signals participation itself
-   costs nothing, without saying so. */
+   costs nothing, without saying so. Each panel carries its own background
+   image (see below) under the same translucent gold-soft tint, so the
+   photo/illustration is visible but never fights the text. */
 .event-panel{
-  background:var(--gold-soft);border-radius:10px;padding:12px 14px;margin-top:12px;
+  position:relative;background:var(--gold-soft);background-size:cover;background-position:center;
+  border-radius:10px;padding:12px 14px;margin-top:12px;
   font-size:13px;line-height:1.55;color:var(--ink);max-width:48ch;
 }
 .event-panel p{margin:0 0 10px;}
 .event-panel p:last-child{margin-bottom:0;}
 .event-panel .btn-cta{font-size:13px;padding:11px 18px;}
+.event-panel a{color:var(--leaf);font-weight:700;text-decoration:underline;}
 .event-panel-label{
   display:block;font-size:10px;font-weight:700;text-transform:uppercase;
   letter-spacing:.1em;color:var(--leaf);margin-bottom:5px;
 }
-.event-panel-cultural a{color:var(--leaf);font-weight:700;text-decoration:underline;}
-/* Sadya panel only: the hero photo bleeds through under the same gold-soft
-   tint as the flat cultural panel, so the two still read as one family. */
-.event-panel-sadya{
+/* Cultural Programs: the existing pookalam photo, tinted. */
+.event-panel-cultural{
   background-image:linear-gradient(rgba(234,223,180,.86),rgba(234,223,180,.86)),url('assets/onam-hero.jpg');
-  background-size:cover;background-position:center 25%;
+  background-position:center 25%;
+}
+/* Onam Sadya: an original banana-leaf-meal illustration, same tint. */
+.event-panel-sadya{
+  background-image:linear-gradient(rgba(234,223,180,.82),rgba(234,223,180,.82)),url('assets/sadya-leaf-bg.svg');
 }
 /* — Home page: cultural-programme ticker — */
 .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0;}

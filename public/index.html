@@ -364,8 +364,12 @@ const EVENT_INFO = {
 // are mentioned only in connection with the lunch, never with performing —
 // that's what signals participation itself costs nothing, without saying so.
 // Trusted static copy (not user input), so it's inserted as HTML directly —
-// not passed through esc() — to keep the tel: links.
-const SADYA_INFO = 'A traditional Kerala banana leaf meal for coupon holders.';
+// not passed through esc() — to keep the tel:/rupee markup.
+// The UPI payees here are static copy, not read from DATA.config.upiPayees:
+// this hero markup is built once, before the first Firestore fetch resolves
+// (see loadData()'s first, DATA-less renderAll() call), so it can't reflect
+// live admin edits — keep it in sync by hand if the payees ever change.
+const SADYA_INFO = 'A traditional Kerala banana leaf meal for coupon holders — ₹500 per meal. Pay via UPI to Rishi <a href="tel:+919611566760">96115 66760</a> or Rakesh <a href="tel:+919496330727">94963 30727</a>.';
 const CULTURAL_INVITE = 'Eternia residents are invited to perform — musical, dance, instrumental, skit, standup comedy! — and showcase their talent. To take part, contact Padma <a href="tel:+918861933777">88619 33777</a> or Nanditha <a href="tel:+919741978305">97419 78305</a>. Programs run 9:00–11:30am, followed by the Onam Sadya lunch for coupon holders.';
 
 // Shown wherever entry-pass QR codes appear (screen + every PDF / WhatsApp message).
@@ -377,9 +381,6 @@ function renderHome(){
   el.dataset.built = '1';
   const calSvg = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="17" rx="2"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4"/></svg>`;
   const pinSvg = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 5.5-8 12-8 12s-8-6.5-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="2.6"/></svg>`;
-  // A banana leaf holding a Sadya meal — rice mound + three curries — for the
-  // Purchase Coupons button. Sways continuously via the .leaf-icon animation.
-  const leafSvg = `<svg viewBox="0 0 32 32" fill="none"><path d="M3 16C7 8 13 5 16 5C19 5 25 8 29 16C25 24 19 27 16 27C13 27 7 24 3 16Z" fill="var(--gold-soft)" stroke="var(--surface)" stroke-width="1.4"/><path d="M5.5 16h21" stroke="var(--surface)" stroke-width="1.1" stroke-linecap="round"/><ellipse cx="16" cy="16" rx="5.2" ry="3.2" fill="var(--surface)"/><circle cx="10" cy="12.5" r="1.7" fill="var(--maroon)"/><circle cx="22" cy="12.5" r="1.7" fill="var(--leaf)"/><circle cx="16" cy="21" r="1.7" fill="var(--gold)"/></svg>`;
   el.innerHTML = `
     <section class="hero">
       <div class="hero-copy">
@@ -398,13 +399,10 @@ function renderHome(){
         <div class="event-panel event-panel-sadya">
           <span class="event-panel-label">Onam Sadya</span>
           <p>${SADYA_INFO}</p>
-          <button class="btn-cta" id="home-register"><span class="leaf-icon" aria-hidden="true">${leafSvg}</span>Purchase Coupons</button>
+          <button class="btn-cta" id="home-register">Purchase Coupons <span aria-hidden="true">&rarr;</span></button>
         </div>
       </div>
       <section class="ticker" id="home-ticker" aria-label="Cultural programme" hidden></section>
-      <div class="hero-art">
-        <img src="assets/onam-hero.jpg" alt="An Onam pookalam — a circular carpet of marigold, jasmine and rose petals — beside a traditional Kerala brass lamp" width="520" height="696" loading="eager" fetchpriority="high">
-      </div>
     </section>
   `;
   document.getElementById('home-register').addEventListener('click', () => switchTab('register'));

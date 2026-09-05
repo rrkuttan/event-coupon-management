@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 400">
+  <!-- Original artwork: a flat-illustration Onam Sadya spread on a banana leaf,
+       used as a subtle tinted background behind the Onam Sadya panel text. -->
+  <defs>
+    <linearGradient id="leaf-shade" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#4B8B5E"/>
+      <stop offset="100%" stop-color="#356B45"/>
+    </linearGradient>
+  </defs>
+
+  <!-- banana leaf -->
+  <path d="M20,200 C20,80 180,40 300,40 C420,40 580,80 580,200 C580,320 420,360 300,360 C180,360 20,320 20,200 Z"
+        fill="url(#leaf-shade)"/>
+  <!-- midrib + veins -->
+  <path d="M40,200 H560" stroke="#2C5C3C" stroke-width="3" opacity=".45" stroke-linecap="round"/>
+  <g stroke="#2C5C3C" stroke-width="1.6" opacity=".3" stroke-linecap="round">
+    <path d="M120,200 L95,120"/><path d="M120,200 L95,280"/>
+    <path d="M220,200 L200,105"/><path d="M220,200 L200,295"/>
+    <path d="M380,200 L400,105"/><path d="M380,200 L400,295"/>
+    <path d="M480,200 L505,120"/><path d="M480,200 L505,280"/>
+  </g>
+
+  <!-- papadam, partly tucked under the rice -->
+  <circle cx="500" cy="270" r="46" fill="#E4C989" opacity=".9"/>
+  <g stroke="#C9A85E" stroke-width="1.4" opacity=".6" fill="none">
+    <circle cx="500" cy="270" r="36"/><circle cx="500" cy="270" r="24"/>
+  </g>
+
+  <!-- banana pieces, near the left tip -->
+  <ellipse cx="75" cy="195" rx="24" ry="11" fill="#F0E2A8" transform="rotate(-8 75 195)"/>
+  <ellipse cx="95" cy="215" rx="20" ry="9" fill="#F0E2A8" transform="rotate(10 95 215)"/>
+
+  <!-- rice mound with soft shadow -->
+  <ellipse cx="300" cy="212" rx="90" ry="58" fill="#000" opacity=".07"/>
+  <ellipse cx="300" cy="205" rx="85" ry="54" fill="#FFF9EC"/>
+
+  <!-- curries scattered around the rice -->
+  <ellipse cx="188" cy="140" rx="32" ry="21" fill="#C97A2B"/>               <!-- sambar -->
+  <circle cx="412" cy="138" r="25" fill="#8B3A2B"/>                          <!-- rasam -->
+  <circle cx="412" cy="138" r="28" fill="none" stroke="#B65B3F" opacity=".5"/>
+  <ellipse cx="172" cy="255" rx="29" ry="19" fill="#B8C77A"/>               <!-- avial -->
+  <g fill="#FFFFFF" opacity=".8">
+    <circle cx="164" cy="250" r="2"/><circle cx="180" cy="258" r="2"/><circle cx="172" cy="262" r="1.6"/>
+  </g>
+  <ellipse cx="420" cy="255" rx="29" ry="19" fill="#5E8C4A"/>               <!-- thoran -->
+  <g fill="#FFFFFF" opacity=".8">
+    <circle cx="412" cy="250" r="2"/><circle cx="428" cy="258" r="2"/><circle cx="420" cy="262" r="1.6"/>
+  </g>
+  <circle cx="222" cy="305" r="15" fill="#7A1F2B"/>                          <!-- pickle -->
+  <ellipse cx="378" cy="308" rx="25" ry="17" fill="#F3D9DE"/>               <!-- pachadi -->
+  <circle cx="300" cy="108" r="22" fill="#C08A4E"/>                         <!-- payasam bowl -->
+  <circle cx="300" cy="108" r="16" fill="#E8C79A"/>
+  <g fill="#E8B93F">                                                        <!-- banana chips -->
+    <ellipse cx="452" cy="188" rx="12" ry="6" transform="rotate(-20 452 188)"/>
+    <ellipse cx="466" cy="196" rx="12" ry="6" transform="rotate(15 466 196)"/>
+    <ellipse cx="458" cy="208" rx="12" ry="6" transform="rotate(-5 458 208)"/>
+  </g>
+</svg>
