@@ -4,6 +4,23 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Onam Sadya 2026 — Registration &amp; Coupons</title>
+<!--
+  LINK-PREVIEW CARD — what shows up when this URL is shared in WhatsApp/etc.
+  The image is a static PNG (public/assets/og-flyer.png), built once from
+  a throwaway HTML mockup + a headless-Chrome screenshot — it is NOT
+  regenerated from this page, so update it by hand if the event details change.
+-->
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://sobha-eternia-onam-2026.web.app/">
+<meta property="og:title" content="Onam 2026 — Sobha Eternia">
+<meta property="og:description" content="Sunday, 20 Sept 2026 · Sobha Eternia Clubhouse. Calling all performers — musical, dance, instrumental, skit, stand-up comedy! Register with Padma 88619 33777 or Nanditha 97419 78305. Programs 9–11:30am, followed by Onam Sadya lunch for coupon holders. Tap to register & get your QR pass.">
+<meta property="og:image" content="https://sobha-eternia-onam-2026.web.app/assets/og-flyer.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Onam 2026 — Sobha Eternia">
+<meta name="twitter:description" content="Cultural programs + registration — tap for details and your QR entry pass.">
+<meta name="twitter:image" content="https://sobha-eternia-onam-2026.web.app/assets/og-flyer.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
@@ -342,6 +359,10 @@ const EVENT_INFO = {
   lede: 'Join your Sobha Eternia family for a day of traditional Sadya and cultural celebration — a time to come together, share a meal, and make memories that last.'
 };
 
+// Call for performers, shown on the Home page hero. Trusted static copy (not user
+// input), so it's inserted as HTML directly — not passed through esc() — to keep the tel: links.
+const CULTURAL_INVITE = 'Inviting participation in cultural programs from Eternia residents (musical, dance, instrumental, skit, standup comedy!) for showcasing diverse talent. For registrations, contact Padma <a href="tel:+918861933777">88619 33777</a> or Nanditha <a href="tel:+919741978305">97419 78305</a>. Programs are planned between 9am and 11:30am, followed by traditional Kerala Onam Sadya (lunch) for those who have purchased coupons.';
+
 // Shown wherever entry-pass QR codes appear (screen + every PDF / WhatsApp message).
 const QR_INFO = 'Your QR code contains your payment status and can be used to redeem entry at the event.';
 
@@ -365,6 +386,7 @@ function renderHome(){
         </div>
         <button class="btn-cta" id="home-register">Register now <span aria-hidden="true">&rarr;</span></button>
         <p class="hero-note">Digital QR Pass &middot; One coupon, one scan, at the door</p>
+        <div class="cultural-invite">${CULTURAL_INVITE}</div>
       </div>
       <section class="ticker" id="home-ticker" aria-label="Cultural programme" hidden></section>
       <div class="hero-art">
@@ -377,9 +399,12 @@ function renderHome(){
 }
 
 // Scrolling ticker of the day's cultural programme (admin-editable list).
+// Hidden on the Home page per request — leave the admin-editable data model
+// and this function intact so it can be turned back on by removing the return below.
 function paintTicker(){
   const wrap = document.getElementById('home-ticker');
   if(!wrap) return;
+  wrap.hidden = true; wrap.innerHTML = ''; return;
   const events = (DATA && Array.isArray(DATA.culturalEvents)) ? DATA.culturalEvents : [];
   if(events.length === 0){ wrap.hidden = true; wrap.innerHTML = ''; return; }
   const one = events.map(e => `<span class="ticker-item"><b>${esc(e.time)}</b>${esc(e.title)}</span>`).join('');
