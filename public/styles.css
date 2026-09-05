@@ -122,9 +122,9 @@ h1,h2,h3,.display{font-family:var(--font-display);}
   background-image:linear-gradient(rgba(234,223,180,.86),rgba(234,223,180,.86)),url('assets/onam-hero.jpg');
   background-position:center 25%;
 }
-/* Onam Sadya: an original banana-leaf-meal illustration, same tint. */
+/* Onam Sadya: a real banana-leaf Sadya photo, same tint treatment. */
 .event-panel-sadya{
-  background-image:linear-gradient(rgba(234,223,180,.82),rgba(234,223,180,.82)),url('assets/sadya-leaf-bg.svg');
+  background-image:linear-gradient(rgba(234,223,180,.83),rgba(234,223,180,.83)),url('assets/sadya.webp');
 }
 /* — Home page: cultural-programme ticker — */
 .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0;}
