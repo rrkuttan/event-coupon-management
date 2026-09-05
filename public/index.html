@@ -355,17 +355,18 @@ const EVENT_INFO = {
   name: 'ONAM 2026',
   tagline: 'Celebrate. Share. Rejoice.',
   dateLabel: 'Sunday, 20 September 2026',
-  venue: 'Sobha Eternia Clubhouse',
-  lede: 'Join your Sobha Eternia family for a traditional Kerala Onam Sadya — a time to come together, share a meal, and make memories that last.'
+  venue: 'Sobha Eternia Clubhouse'
 };
 
-// Call for performers, shown on the Home page hero — deliberately kept separate from
-// the Sadya/coupon copy above: this is about performing (contact Padma/Nanditha),
-// not purchasing, and coupons are mentioned only in connection with the lunch, never
-// this. That's what signals participation itself costs nothing, without saying so.
-// Trusted static copy (not user input), so it's inserted as HTML directly — not
-// passed through esc() — to keep the tel: links.
-const CULTURAL_INVITE = '<span class="cultural-invite-label">Cultural Programs</span>Eternia residents are invited to perform — musical, dance, instrumental, skit, standup comedy! — and showcase their talent. To take part, contact Padma <a href="tel:+918861933777">88619 33777</a> or Nanditha <a href="tel:+919741978305">97419 78305</a>. Programs run 9:00–11:30am, followed by the Onam Sadya lunch for coupon holders.';
+// Two panels on the Home hero, styled to match the WhatsApp link-preview flyer
+// (public/assets/og-flyer.png): Onam Sadya (paid, via coupon) and Cultural
+// Programs (performing — contact Padma/Nanditha, no coupon involved). Coupons
+// are mentioned only in connection with the lunch, never with performing —
+// that's what signals participation itself costs nothing, without saying so.
+// Trusted static copy (not user input), so it's inserted as HTML directly —
+// not passed through esc() — to keep the tel: links.
+const SADYA_INFO = 'Traditional Kerala lunch for coupon holders.';
+const CULTURAL_INVITE = 'Eternia residents are invited to perform — musical, dance, instrumental, skit, standup comedy! — and showcase their talent. To take part, contact Padma <a href="tel:+918861933777">88619 33777</a> or Nanditha <a href="tel:+919741978305">97419 78305</a>. Programs run 9:00–11:30am, followed by the Onam Sadya lunch for coupon holders.';
 
 // Shown wherever entry-pass QR codes appear (screen + every PDF / WhatsApp message).
 const QR_INFO = 'Your QR code contains your payment status and can be used to redeem entry at the event.';
@@ -383,14 +384,19 @@ function renderHome(){
         <h1 class="display-xl">${esc(EVENT_INFO.name)}</h1>
         <p class="tagline">${esc(EVENT_INFO.tagline)}</p>
         <div class="flourish"><span></span>&#10047;<span></span></div>
-        <p class="lede">${esc(EVENT_INFO.lede)}</p>
         <div class="hero-meta">
           <div class="hero-meta-row">${calSvg}<span>${esc(EVENT_INFO.dateLabel)}</span></div>
           <div class="hero-meta-row">${pinSvg}<span>${esc(EVENT_INFO.venue)}</span></div>
         </div>
-        <button class="btn-cta" id="home-register">Purchase Coupons <span aria-hidden="true">&rarr;</span></button>
-        <p class="hero-note">Digital QR Pass &middot; One coupon, one scan, at the door</p>
-        <div class="cultural-invite">${CULTURAL_INVITE}</div>
+        <div class="event-panel event-panel-sadya">
+          <span class="event-panel-label">Onam Sadya</span>
+          <p>${SADYA_INFO}</p>
+          <button class="btn-cta" id="home-register">Purchase Coupons <span aria-hidden="true">&rarr;</span></button>
+        </div>
+        <div class="event-panel event-panel-cultural">
+          <span class="event-panel-label">Cultural Programs</span>
+          <p>${CULTURAL_INVITE}</p>
+        </div>
       </div>
       <section class="ticker" id="home-ticker" aria-label="Cultural programme" hidden></section>
       <div class="hero-art">
