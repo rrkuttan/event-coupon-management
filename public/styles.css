@@ -112,11 +112,19 @@ h1,h2,h3,.display{font-family:var(--font-display);}
   letter-spacing:.03em;padding:13px 22px;border-radius:10px;text-transform:uppercase;
 }
 .btn-cta:active{background:var(--leaf-light);}
-/* Two panels distinguishing the free-to-join Cultural Programs from the
-   paid-via-coupon Onam Sadya — same two-panel language as the WhatsApp
-   link-preview flyer (public/assets/og-flyer.png). */
+/* The little banana-leaf-and-sadya glyph on the Purchase Coupons button —
+   a gentle continuous sway, quickening on hover/focus for a playful nudge. */
+.leaf-icon{display:inline-flex;width:20px;height:20px;flex-shrink:0;transform-origin:50% 50%;animation:leaf-sway 2.6s ease-in-out infinite;}
+.btn-cta:hover .leaf-icon,.btn-cta:focus-visible .leaf-icon{animation-duration:.9s;}
+@keyframes leaf-sway{0%,100%{transform:rotate(-7deg);}50%{transform:rotate(7deg);}}
+@media(prefers-reduced-motion:reduce){.leaf-icon{animation:none;}}
+/* Two panels for Cultural Programs and Onam Sadya — same look and feel
+   (shared .event-panel base) as the WhatsApp link-preview flyer
+   (public/assets/og-flyer.png). Coupons are mentioned only for the Sadya
+   lunch, never for performing — that's what signals participation itself
+   costs nothing, without saying so. */
 .event-panel{
-  border-radius:10px;padding:12px 14px;margin-top:12px;
+  background:var(--gold-soft);border-radius:10px;padding:12px 14px;margin-top:12px;
   font-size:13px;line-height:1.55;color:var(--ink);max-width:48ch;
 }
 .event-panel p{margin:0 0 10px;}
@@ -126,9 +134,13 @@ h1,h2,h3,.display{font-family:var(--font-display);}
   display:block;font-size:10px;font-weight:700;text-transform:uppercase;
   letter-spacing:.1em;color:var(--leaf);margin-bottom:5px;
 }
-.event-panel-sadya{background:var(--surface);border:1.5px solid var(--leaf);}
-.event-panel-cultural{background:var(--gold-soft);}
 .event-panel-cultural a{color:var(--leaf);font-weight:700;text-decoration:underline;}
+/* Sadya panel only: the hero photo bleeds through under the same gold-soft
+   tint as the flat cultural panel, so the two still read as one family. */
+.event-panel-sadya{
+  background-image:linear-gradient(rgba(234,223,180,.86),rgba(234,223,180,.86)),url('assets/onam-hero.jpg');
+  background-size:cover;background-position:center 25%;
+}
 /* — Home page: cultural-programme ticker — */
 .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0;}
 .ticker[hidden]{display:none;}
