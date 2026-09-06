@@ -138,6 +138,15 @@ const DEFAULT_DATA = {
     adminPin: '2026',
     nextSeq: 1
   },
+  // Event accounting: one entry per spending head (Sadya Catering, Cultural
+  // Programs, Venue, …). A head's budget either comes from its own
+  // `committed` figure, or — once it has sub-items — from summing those
+  // (unitCost × quantity) instead; `discount` then comes off that total.
+  // See expenseNetCommitted() for the actual formula.
+  expenses: [],
+  // Income beyond coupon sales (sponsorships, donations, extra collections),
+  // each optionally tagged to the expense head it's meant to offset.
+  otherIncome: [],
   culturalEvents: [
     { id: 'e1', title: 'Lighting the Lamp', time: '09:00 AM' },
     { id: 'e2', title: 'Song by Aadya', time: '09:15 AM' },
@@ -205,7 +214,42 @@ function normalizeData(loaded){
     const paidTo = typeof r.paidTo === 'string' ? r.paidTo : '';
     return { ...r, flat, paidTo, tickets };
   });
-  return { config, culturalEvents, registrations };
+  const expenses = (Array.isArray(d.expenses) ? d.expenses : []).map(x => ({
+    id: x.id || ('x' + Date.now() + Math.floor(Math.random() * 1000)),
+    head: String((x && x.head) || '').trim(),
+    vendorName: String((x && x.vendorName) || '').trim(),
+    subItems: (Array.isArray(x && x.subItems) ? x.subItems : []).map(si => ({
+      id: si.id || ('si' + Date.now() + Math.floor(Math.random() * 1000)),
+      name: String((si && si.name) || '').trim(),
+      unitCost: Number(si && si.unitCost) || 0,
+      quantity: Number(si && si.quantity) || 1
+    })),
+    committed: Number(x && x.committed) || 0,   // only used while subItems is empty
+    discount: Number(x && x.discount) || 0,
+    // Paid is derived (see headPaid()) from these line items, not stored as
+    // one number — a head can be settled in several installments. A doc
+    // saved before this existed had a single `paid` figure instead; carry
+    // it forward as one migrated payment so nothing is lost.
+    payments: (Array.isArray(x && x.payments) ? x.payments
+      : (Number(x && x.paid) > 0 ? [{ amount: Number(x.paid), date: (x && x.date) || '', mode: '', note: 'Migrated from earlier total' }] : [])
+    ).map(p => ({
+      id: p.id || ('p' + Date.now() + Math.floor(Math.random() * 1000)),
+      amount: Number(p && p.amount) || 0,
+      date: typeof (p && p.date) === 'string' ? p.date : '',
+      mode: String((p && p.mode) || '').trim(),
+      note: String((p && p.note) || '').trim()
+    })),
+    date: typeof (x && x.date) === 'string' ? x.date : '',
+    notes: typeof (x && x.notes) === 'string' ? x.notes : ''
+  }));
+  const otherIncome = (Array.isArray(d.otherIncome) ? d.otherIncome : []).map(o => ({
+    id: o.id || ('oi' + Date.now() + Math.floor(Math.random() * 1000)),
+    description: String((o && o.description) || '').trim(),
+    amount: Number(o && o.amount) || 0,
+    date: typeof (o && o.date) === 'string' ? o.date : '',
+    expenseHeadId: String((o && o.expenseHeadId) || '').trim()
+  }));
+  return { config, culturalEvents, registrations, expenses, otherIncome };
 }
 
 async function saveData(){
@@ -1040,6 +1084,7 @@ function renderAdmin(){
       <button data-s="events" class="${adminSubtab==='events'?'active':''}">Cultural Programs</button>
       <button data-s="redeem" class="${adminSubtab==='redeem'?'active':''}">Redeem Entry</button>
       <button data-s="settlement" class="${adminSubtab==='settlement'?'active':''}">Settlement</button>
+      <button data-s="accounting" class="${adminSubtab==='accounting'?'active':''}">Accounting</button>
       <button data-s="settings" class="${adminSubtab==='settings'?'active':''}">Settings</button>
     </div>
     <div id="admin-content"></div>
@@ -1054,6 +1099,7 @@ function renderAdmin(){
   if(adminSubtab === 'events') renderAdminEvents(c);
   if(adminSubtab === 'redeem') renderAdminRedeem(c);
   if(adminSubtab === 'settlement') renderAdminSettlement(c);
+  if(adminSubtab === 'accounting') renderAdminAccounting(c);
   if(adminSubtab === 'settings') renderAdminSettings(c);
 }
 
@@ -1149,6 +1195,41 @@ function renderAdminSettings(c){
     document.getElementById('cfg-result').innerHTML =
       `<div class="scan-result ok"><b>Price set to ₹${next}.</b> ${toReprice.length} unpaid coupon(s) re-priced.</div>`;
   });
+}
+
+// Sum of a head's sub-items (unit cost × quantity each). 0 if it has none.
+function subItemsTotal(head){
+  return (head.subItems || []).reduce((s, si) => s + si.unitCost * si.quantity, 0);
+}
+// A head's budget: sub-items rollup once it has any (its own `committed`
+// field is then ignored — the sub-items are the source of truth), minus
+// any overall vendor discount. Clamped at 0 so a discount can't go negative.
+function expenseNetCommitted(head){
+  const base = (head.subItems && head.subItems.length) ? subItemsTotal(head) : (head.committed || 0);
+  return Math.max(0, base - (head.discount || 0));
+}
+// Total paid against a head so far — the sum of its individual payment
+// records, since a vendor is often settled in an advance + installments
+// rather than one lump sum.
+function headPaid(head){
+  return (head.payments || []).reduce((s, p) => s + p.amount, 0);
+}
+function computeExpenseStats(){
+  const heads = DATA.expenses || [];
+  let totalCommitted = 0, totalPaid = 0;
+  heads.forEach(h => { totalCommitted += expenseNetCommitted(h); totalPaid += headPaid(h); });
+  return { totalCommitted, totalPaid, totalBalance: totalCommitted - totalPaid };
+}
+// Income beyond coupon sales — sponsorships, donations, extra collections —
+// already-received, so it counts as both collected and expected (there's no
+// "pending" state for a manually-entered income line the way an unpaid
+// coupon has one).
+function otherIncomeTotal(){
+  return (DATA.otherIncome || []).reduce((s, o) => s + o.amount, 0);
+}
+function expenseHeadName(id){
+  const h = (DATA.expenses || []).find(x => x.id === id);
+  return h ? h.head : '';
 }
 
 function computeStats(){
@@ -1741,6 +1822,478 @@ function renderAdminSettlement(c){
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url; a.download = 'onam-sadya-settlement.csv';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  });
+}
+
+// Event accounting: expense heads, each optionally broken into sub-items
+// (unit cost × quantity) that roll up into the head's committed budget,
+// with an overall vendor discount applied on top. See expenseNetCommitted().
+function renderAdminAccounting(c){
+  c.innerHTML = `
+    <div id="acc-summary"></div>
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
+        <h3 style="margin:0;font-size:15px;">Other income</h3>
+        <button class="secondary" id="exp-export" style="max-width:160px;">Export CSV</button>
+      </div>
+      <p class="small-note">Coupon sales are tracked automatically. Add anything else here — sponsorships, donations, extra collections — so it counts toward income collected above. Tagging one to an expense head is just a label for your own reference; it doesn't change that head's own numbers.</p>
+      <div id="income-list"></div>
+    </div>
+    <div class="card">
+      <h3 style="margin-top:0;font-size:15px;">Add other income</h3>
+      <label>Description</label>
+      <input id="inc-desc" placeholder="e.g. Sponsorship from XYZ Traders">
+      <label>Amount (₹)</label>
+      <input id="inc-amount" type="number" min="0" step="1" placeholder="0">
+      <label>Date</label>
+      <input id="inc-date" type="date">
+      <label>Expense head (optional)</label>
+      <select id="inc-head"><option value="">— none —</option></select>
+      <button class="primary" id="inc-add">Add income</button>
+    </div>
+    <div class="card">
+      <h3 style="margin-top:0;font-size:15px;">Expense heads</h3>
+      <p class="small-note">A head's committed budget comes from its sub-items (unit cost &times; quantity) once it has any &mdash; its own committed amount is only used for simple heads with no breakdown. An overall vendor discount then comes off that total. Paid is the sum of that head's individual payments, recorded as you settle it in one or more installments.</p>
+      <div id="expense-list"></div>
+    </div>
+    <div class="card">
+      <h3 style="margin-top:0;font-size:15px;">Add an expense head</h3>
+      <label>Head name</label>
+      <input id="exp-head" placeholder="e.g. Sadya Catering">
+      <label>Vendor name</label>
+      <input id="exp-vendor" placeholder="e.g. ABC Caterers">
+      <label>Committed amount (₹ — only if it won't have a sub-item breakdown)</label>
+      <input id="exp-committed" type="number" min="0" step="1" placeholder="0">
+      <button class="primary" id="exp-add">Add expense head</button>
+    </div>
+  `;
+
+  const list = document.getElementById('expense-list');
+  // expandedId: which head's sub-items/payments are shown. editHeadId: head being edited.
+  // editSubKey / editPayKey: "<headId>:<itemId>" being edited, or "<headId>:new" for the add-row.
+  let expandedId = null, editHeadId = null, editSubKey = null, editPayKey = null;
+
+  // Recomputed on every paint (not just once) so it reflects every add/edit/remove.
+  const paintSummary = () => {
+    const stats = computeStats();
+    const ex = computeExpenseStats();
+    const otherIncome = otherIncomeTotal();
+    const incomeCollected = stats.amountCollected + otherIncome;
+    const incomeExpected = stats.amountExpected + otherIncome;
+    const netCash = incomeCollected - ex.totalPaid;
+    const projectedNet = incomeExpected - ex.totalCommitted;
+    document.getElementById('acc-summary').innerHTML = `
+      <div class="stat-grid">
+        <div class="stat"><div class="v">${fmtMoney(incomeCollected)}</div><div class="l">Income collected</div></div>
+        <div class="stat"><div class="v">${fmtMoney(incomeExpected)}</div><div class="l">Income expected (all)</div></div>
+        <div class="stat"><div class="v">${fmtMoney(ex.totalCommitted)}</div><div class="l">Total committed (expenses)</div></div>
+        <div class="stat"><div class="v">${fmtMoney(ex.totalPaid)}</div><div class="l">Total paid out</div></div>
+        <div class="stat"><div class="v" style="${netCash<0?'color:var(--maroon);':''}">${fmtMoney(netCash)}</div><div class="l">Net cash on hand</div></div>
+        <div class="stat"><div class="v" style="${projectedNet<0?'color:var(--maroon);':''}">${fmtMoney(projectedNet)}</div><div class="l">Projected net (fully collected/paid)</div></div>
+      </div>`;
+  };
+
+  const incomeList = document.getElementById('income-list');
+  let editIncomeId = null;
+
+  const paintIncomeHeadSelect = (selectEl, selectedId) => {
+    const heads = DATA.expenses || [];
+    selectEl.innerHTML = `<option value="">— none —</option>` +
+      heads.map(h => `<option value="${h.id}" ${h.id === selectedId ? 'selected' : ''}>${esc(h.head) || '(untitled head)'}</option>`).join('');
+  };
+
+  const paintIncome = () => {
+    const items = DATA.otherIncome || [];
+    if(items.length === 0){ incomeList.innerHTML = `<div class="empty">No other income added yet.</div>`; paintSummary(); return; }
+    incomeList.innerHTML = items.map(o => {
+      if(editIncomeId === o.id){
+        return `
+        <div class="event-row event-row--edit" style="flex-wrap:wrap;">
+          <input class="inc-edit-desc" value="${esc(o.description)}" placeholder="Description" style="flex:1 1 160px;">
+          <input class="inc-edit-amount" type="number" min="0" value="${o.amount}" placeholder="Amount" style="flex:0 0 110px;">
+          <input class="inc-edit-date" type="date" value="${esc(o.date)}" style="flex:0 0 150px;">
+          <select class="inc-edit-head" style="flex:0 0 160px;"></select>
+          <span style="display:flex;gap:6px;flex-shrink:0;">
+            <button class="pill-btn paid" data-save-income="${o.id}">Save</button>
+            <button class="pill-btn pending" data-cancel-income="1">Cancel</button>
+          </span>
+        </div>`;
+      }
+      const headName = o.expenseHeadId ? expenseHeadName(o.expenseHeadId) : '';
+      return `
+      <div class="event-row">
+        <div style="flex:1 1 100%;min-width:0;">
+          ${esc(o.description) || '(no description)'} <span class="small-note" style="margin:0;">&mdash; ${fmtMoney(o.amount)}${o.date ? ` &middot; ${esc(o.date)}` : ''}${headName ? ` &middot; for ${esc(headName)}` : ''}</span>
+        </div>
+        <div class="event-row-actions">
+          <button class="ghost" data-edit-income="${o.id}">Edit</button>
+          <button class="ghost" data-rm-income="${o.id}">Remove</button>
+        </div>
+      </div>`;
+    }).join('');
+    const editingSelect = incomeList.querySelector('.inc-edit-head');
+    if(editingSelect) paintIncomeHeadSelect(editingSelect, (items.find(x => x.id === editIncomeId) || {}).expenseHeadId || '');
+    wireIncomeRows();
+    paintSummary();
+  };
+
+  const wireIncomeRows = () => {
+    incomeList.querySelectorAll('[data-edit-income]').forEach(b => b.addEventListener('click', () => { editIncomeId = b.dataset.editIncome; paintIncome(); }));
+    incomeList.querySelectorAll('[data-cancel-income]').forEach(b => b.addEventListener('click', () => { editIncomeId = null; paintIncome(); }));
+    incomeList.querySelectorAll('[data-save-income]').forEach(b => b.addEventListener('click', async () => {
+      const row = b.closest('.event-row');
+      const description = row.querySelector('.inc-edit-desc').value.trim();
+      const amount = Number(row.querySelector('.inc-edit-amount').value) || 0;
+      const o = (DATA.otherIncome || []).find(x => x.id === b.dataset.saveIncome);
+      if(o){
+        o.description = description;
+        o.amount = amount;
+        o.date = row.querySelector('.inc-edit-date').value;
+        o.expenseHeadId = row.querySelector('.inc-edit-head').value;
+      }
+      editIncomeId = null; paintIncome(); await saveData();
+    }));
+    incomeList.querySelectorAll('[data-rm-income]').forEach(b => b.addEventListener('click', async () => {
+      if(!confirm('Remove this income entry?')) return;
+      DATA.otherIncome = (DATA.otherIncome || []).filter(x => x.id !== b.dataset.rmIncome);
+      paintIncome(); await saveData();
+    }));
+  };
+
+  const subItemsBlockHTML = (h) => {
+    const rows = h.subItems.map(si => {
+      const key = h.id + ':' + si.id;
+      if(editSubKey === key){
+        return `
+        <div class="event-row event-row--edit" style="padding:6px 0 6px 16px;">
+          <input class="si-edit-name" value="${esc(si.name)}" placeholder="Item name" style="flex:1 1 140px;">
+          <input class="si-edit-unit" type="number" min="0" value="${si.unitCost}" placeholder="Unit cost" style="flex:0 0 100px;">
+          <input class="si-edit-qty" type="number" min="0" step="1" value="${si.quantity}" placeholder="Qty" style="flex:0 0 70px;">
+          <span style="display:flex;gap:6px;flex-shrink:0;">
+            <button class="pill-btn paid" data-save-sub="${key}">Save</button>
+            <button class="pill-btn pending" data-cancel-sub="1">Cancel</button>
+          </span>
+        </div>`;
+      }
+      return `
+      <div class="event-row" style="padding:6px 0 6px 16px;">
+        <div style="flex:1;min-width:0;">${esc(si.name) || '(untitled item)'} <span class="small-note" style="margin:0;">&mdash; ${fmtMoney(si.unitCost)} &times; ${si.quantity} = ${fmtMoney(si.unitCost * si.quantity)}</span></div>
+        <div class="event-row-actions">
+          <button class="ghost" data-edit-sub="${key}">Edit</button>
+          <button class="ghost" data-rm-sub="${key}">Remove</button>
+        </div>
+      </div>`;
+    }).join('');
+    const newKey = h.id + ':new';
+    const addRow = editSubKey === newKey ? `
+      <div class="event-row event-row--edit" style="padding:6px 0 6px 16px;">
+        <input class="si-new-name" placeholder="Item name" style="flex:1 1 140px;">
+        <input class="si-new-unit" type="number" min="0" placeholder="Unit cost" style="flex:0 0 100px;">
+        <input class="si-new-qty" type="number" min="0" step="1" value="1" placeholder="Qty" style="flex:0 0 70px;">
+        <span style="display:flex;gap:6px;flex-shrink:0;">
+          <button class="pill-btn paid" data-save-newsub="${h.id}">Add</button>
+          <button class="pill-btn pending" data-cancel-sub="1">Cancel</button>
+        </span>
+      </div>` : `
+      <div style="padding:6px 0 6px 16px;">
+        <button class="ghost" data-newsub="${h.id}">+ Add sub-item</button>
+      </div>`;
+    return `<div style="border-top:1px dashed var(--line);margin-top:2px;">
+      ${h.subItems.length === 0 && editSubKey !== newKey ? `<p class="small-note" style="padding-left:16px;">No sub-items yet — using the head's own committed amount.</p>` : rows}
+      ${addRow}
+    </div>`;
+  };
+
+  const paymentsBlockHTML = (h) => {
+    const rows = (h.payments || []).map(p => {
+      const key = h.id + ':' + p.id;
+      if(editPayKey === key){
+        return `
+        <div class="event-row event-row--edit" style="padding:6px 0 6px 16px;">
+          <input class="pay-edit-amount" type="number" min="0" value="${p.amount}" placeholder="Amount" style="flex:0 0 110px;">
+          <input class="pay-edit-date" type="date" value="${esc(p.date)}" style="flex:0 0 150px;">
+          <input class="pay-edit-mode" value="${esc(p.mode)}" placeholder="Mode (UPI/Cash…)" style="flex:0 0 140px;">
+          <input class="pay-edit-note" value="${esc(p.note)}" placeholder="Note" style="flex:1 1 140px;">
+          <span style="display:flex;gap:6px;flex-shrink:0;">
+            <button class="pill-btn paid" data-save-pay="${key}">Save</button>
+            <button class="pill-btn pending" data-cancel-pay="1">Cancel</button>
+          </span>
+        </div>`;
+      }
+      return `
+      <div class="event-row" style="padding:6px 0 6px 16px;">
+        <div style="flex:1;min-width:0;">
+          ${fmtMoney(p.amount)}${p.mode ? ` &middot; ${esc(p.mode)}` : ''}${p.date ? ` &middot; ${esc(p.date)}` : ''}
+          ${p.note ? `<div class="small-note" style="margin:2px 0 0;">${esc(p.note)}</div>` : ''}
+        </div>
+        <div class="event-row-actions">
+          <button class="ghost" data-edit-pay="${key}">Edit</button>
+          <button class="ghost" data-rm-pay="${key}">Remove</button>
+        </div>
+      </div>`;
+    }).join('');
+    const newKey = h.id + ':new';
+    const addRow = editPayKey === newKey ? `
+      <div class="event-row event-row--edit" style="padding:6px 0 6px 16px;">
+        <input class="pay-new-amount" type="number" min="0" placeholder="Amount" style="flex:0 0 110px;">
+        <input class="pay-new-date" type="date" style="flex:0 0 150px;">
+        <input class="pay-new-mode" placeholder="Mode (UPI/Cash…)" style="flex:0 0 140px;">
+        <input class="pay-new-note" placeholder="Note" style="flex:1 1 140px;">
+        <span style="display:flex;gap:6px;flex-shrink:0;">
+          <button class="pill-btn paid" data-save-newpay="${h.id}">Add</button>
+          <button class="pill-btn pending" data-cancel-pay="1">Cancel</button>
+        </span>
+      </div>` : `
+      <div style="padding:6px 0 6px 16px;">
+        <button class="ghost" data-newpay="${h.id}">+ Record a payment</button>
+      </div>`;
+    return `<div style="border-top:1px dashed var(--line);margin-top:2px;">
+      ${(h.payments || []).length === 0 && editPayKey !== newKey ? `<p class="small-note" style="padding-left:16px;">No payments recorded yet.</p>` : rows}
+      ${addRow}
+    </div>`;
+  };
+
+  const paint = () => {
+    const heads = DATA.expenses || [];
+    // Keep the "Add other income" head picker in sync — a head added/removed/
+    // renamed here should show up there without switching tabs.
+    const incHeadSelect = document.getElementById('inc-head');
+    if(incHeadSelect) paintIncomeHeadSelect(incHeadSelect, incHeadSelect.value);
+    if(heads.length === 0){ list.innerHTML = `<div class="empty">No expense heads added yet.</div>`; paintSummary(); return; }
+    list.innerHTML = heads.map(h => {
+      const hasSubItems = h.subItems.length > 0;
+
+      if(editHeadId === h.id){
+        return `
+        <div class="expense-head">
+          <div class="event-row event-row--edit" style="flex-wrap:wrap;">
+            <input class="eh-head" value="${esc(h.head)}" placeholder="Head name" style="flex:1 1 160px;">
+            <input class="eh-vendor" value="${esc(h.vendorName)}" placeholder="Vendor name" style="flex:1 1 160px;">
+            ${!hasSubItems ? `<input class="eh-committed" type="number" min="0" value="${h.committed}" placeholder="Committed" style="flex:0 0 110px;">` : ''}
+            <input class="eh-discount" type="number" min="0" value="${h.discount}" placeholder="Discount" style="flex:0 0 100px;">
+            <input class="eh-date" type="date" value="${esc(h.date)}" style="flex:0 0 150px;">
+            <input class="eh-notes" value="${esc(h.notes)}" placeholder="Notes" style="flex:1 1 160px;">
+            <span style="display:flex;gap:6px;flex-shrink:0;">
+              <button class="pill-btn paid" data-save-head="${h.id}">Save</button>
+              <button class="pill-btn pending" data-cancel-head="1">Cancel</button>
+            </span>
+          </div>
+        </div>`;
+      }
+
+      const subTotal = subItemsTotal(h);
+      const net = expenseNetCommitted(h);
+      const paid = headPaid(h);
+      const balance = net - paid;
+      const isExpanded = expandedId === h.id;
+      return `
+      <div class="expense-head">
+        <div class="event-row">
+          <div style="flex:1 1 100%;min-width:0;">
+            <b>${esc(h.head) || '(untitled head)'}</b>${h.vendorName ? ` <span class="small-note" style="margin:0;">&mdash; ${esc(h.vendorName)}</span>` : ''}
+            <div class="small-note" style="margin:2px 0 0;">
+              Committed ${fmtMoney(net)}${h.discount ? ` (sub-items ${fmtMoney(subTotal)} &minus; discount ${fmtMoney(h.discount)})` : ''}
+              &middot; Paid ${fmtMoney(paid)}${(h.payments||[]).length > 1 ? ` (${h.payments.length} payments)` : ''}
+              &middot; Balance <span style="font-weight:600;${balance>0?'color:var(--maroon);':''}">${fmtMoney(balance)}</span>
+              ${h.date ? ` &middot; ${esc(h.date)}` : ''}
+            </div>
+            ${h.notes ? `<div class="small-note" style="margin:2px 0 0;">${esc(h.notes)}</div>` : ''}
+          </div>
+          <div class="event-row-actions">
+            <button class="ico-btn" data-expand="${h.id}" aria-label="Toggle details">${isExpanded ? '▲' : '▾'}</button>
+            <button class="ghost" data-edit-head="${h.id}">Edit</button>
+            <button class="ghost" data-rm-head="${h.id}">Remove</button>
+          </div>
+        </div>
+        ${isExpanded ? `
+        <div style="padding-left:2px;">
+          <p class="small-note" style="padding:8px 0 0 16px;font-weight:600;">Cost breakdown</p>
+          ${subItemsBlockHTML(h)}
+          <p class="small-note" style="padding:8px 0 0 16px;font-weight:600;">Payments made</p>
+          ${paymentsBlockHTML(h)}
+        </div>` : ''}
+      </div>`;
+    }).join('');
+    wireRows();
+    paintSummary();
+  };
+
+  const wireRows = () => {
+    list.querySelectorAll('[data-expand]').forEach(b => b.addEventListener('click', () => {
+      expandedId = expandedId === b.dataset.expand ? null : b.dataset.expand;
+      editHeadId = null; editSubKey = null; editPayKey = null;
+      paint();
+    }));
+    list.querySelectorAll('[data-edit-head]').forEach(b => b.addEventListener('click', () => { editHeadId = b.dataset.editHead; paint(); }));
+    list.querySelectorAll('[data-cancel-head]').forEach(b => b.addEventListener('click', () => { editHeadId = null; paint(); }));
+    list.querySelectorAll('[data-save-head]').forEach(b => b.addEventListener('click', async () => {
+      const row = b.closest('.expense-head');
+      const head = row.querySelector('.eh-head').value.trim();
+      if(!head){ alert('Enter a head name.'); return; }
+      const h = DATA.expenses.find(x => x.id === b.dataset.saveHead);
+      if(h){
+        h.head = head;
+        h.vendorName = row.querySelector('.eh-vendor').value.trim();
+        const committedInput = row.querySelector('.eh-committed');
+        if(committedInput) h.committed = Number(committedInput.value) || 0;
+        h.discount = Number(row.querySelector('.eh-discount').value) || 0;
+        h.date = row.querySelector('.eh-date').value;
+        h.notes = row.querySelector('.eh-notes').value.trim();
+      }
+      editHeadId = null; paint(); await saveData();
+    }));
+    list.querySelectorAll('[data-rm-head]').forEach(b => b.addEventListener('click', async () => {
+      if(!confirm('Remove this expense head and all its sub-items?')) return;
+      DATA.expenses = DATA.expenses.filter(x => x.id !== b.dataset.rmHead);
+      paint(); await saveData();
+    }));
+    list.querySelectorAll('[data-newsub]').forEach(b => b.addEventListener('click', () => { editSubKey = b.dataset.newsub + ':new'; paint(); }));
+    list.querySelectorAll('[data-edit-sub]').forEach(b => b.addEventListener('click', () => { editSubKey = b.dataset.editSub; paint(); }));
+    list.querySelectorAll('[data-cancel-sub]').forEach(b => b.addEventListener('click', () => { editSubKey = null; paint(); }));
+    list.querySelectorAll('[data-save-newsub]').forEach(b => b.addEventListener('click', async () => {
+      const row = b.closest('.event-row');
+      const name = row.querySelector('.si-new-name').value.trim();
+      if(!name){ alert('Enter an item name.'); return; }
+      const unitCost = Number(row.querySelector('.si-new-unit').value) || 0;
+      const quantity = Number(row.querySelector('.si-new-qty').value) || 1;
+      const h = DATA.expenses.find(x => x.id === b.dataset.saveNewsub);
+      if(h) h.subItems.push({ id: 'si' + Date.now() + Math.floor(Math.random() * 1000), name, unitCost, quantity });
+      editSubKey = null; paint(); await saveData();
+    }));
+    list.querySelectorAll('[data-save-sub]').forEach(b => b.addEventListener('click', async () => {
+      const row = b.closest('.event-row');
+      const [headId, subId] = b.dataset.saveSub.split(':');
+      const name = row.querySelector('.si-edit-name').value.trim();
+      if(!name){ alert('Enter an item name.'); return; }
+      const h = DATA.expenses.find(x => x.id === headId);
+      const si = h && h.subItems.find(x => x.id === subId);
+      if(si){
+        si.name = name;
+        si.unitCost = Number(row.querySelector('.si-edit-unit').value) || 0;
+        si.quantity = Number(row.querySelector('.si-edit-qty').value) || 1;
+      }
+      editSubKey = null; paint(); await saveData();
+    }));
+    list.querySelectorAll('[data-rm-sub]').forEach(b => b.addEventListener('click', async () => {
+      if(!confirm('Remove this sub-item?')) return;
+      const [headId, subId] = b.dataset.rmSub.split(':');
+      const h = DATA.expenses.find(x => x.id === headId);
+      if(h) h.subItems = h.subItems.filter(x => x.id !== subId);
+      paint(); await saveData();
+    }));
+    list.querySelectorAll('[data-newpay]').forEach(b => b.addEventListener('click', () => { editPayKey = b.dataset.newpay + ':new'; paint(); }));
+    list.querySelectorAll('[data-edit-pay]').forEach(b => b.addEventListener('click', () => { editPayKey = b.dataset.editPay; paint(); }));
+    list.querySelectorAll('[data-cancel-pay]').forEach(b => b.addEventListener('click', () => { editPayKey = null; paint(); }));
+    list.querySelectorAll('[data-save-newpay]').forEach(b => b.addEventListener('click', async () => {
+      const row = b.closest('.event-row');
+      const amount = Number(row.querySelector('.pay-new-amount').value) || 0;
+      if(amount <= 0){ alert('Enter a payment amount.'); return; }
+      const date = row.querySelector('.pay-new-date').value;
+      const mode = row.querySelector('.pay-new-mode').value.trim();
+      const note = row.querySelector('.pay-new-note').value.trim();
+      const h = DATA.expenses.find(x => x.id === b.dataset.saveNewpay);
+      if(h) h.payments.push({ id: 'p' + Date.now() + Math.floor(Math.random() * 1000), amount, date, mode, note });
+      editPayKey = null; paint(); await saveData();
+    }));
+    list.querySelectorAll('[data-save-pay]').forEach(b => b.addEventListener('click', async () => {
+      const row = b.closest('.event-row');
+      const [headId, payId] = b.dataset.savePay.split(':');
+      const amount = Number(row.querySelector('.pay-edit-amount').value) || 0;
+      if(amount <= 0){ alert('Enter a payment amount.'); return; }
+      const h = DATA.expenses.find(x => x.id === headId);
+      const p = h && h.payments.find(x => x.id === payId);
+      if(p){
+        p.amount = amount;
+        p.date = row.querySelector('.pay-edit-date').value;
+        p.mode = row.querySelector('.pay-edit-mode').value.trim();
+        p.note = row.querySelector('.pay-edit-note').value.trim();
+      }
+      editPayKey = null; paint(); await saveData();
+    }));
+    list.querySelectorAll('[data-rm-pay]').forEach(b => b.addEventListener('click', async () => {
+      if(!confirm('Remove this payment?')) return;
+      const [headId, payId] = b.dataset.rmPay.split(':');
+      const h = DATA.expenses.find(x => x.id === headId);
+      if(h) h.payments = h.payments.filter(x => x.id !== payId);
+      paint(); await saveData();
+    }));
+  };
+
+  paintIncome();
+  paint();
+
+  document.getElementById('inc-add').addEventListener('click', async () => {
+    const description = document.getElementById('inc-desc').value.trim();
+    const amount = Number(document.getElementById('inc-amount').value) || 0;
+    if(amount <= 0){ alert('Enter an amount.'); return; }
+    const date = document.getElementById('inc-date').value;
+    const expenseHeadId = document.getElementById('inc-head').value;
+    DATA.otherIncome = DATA.otherIncome || [];
+    DATA.otherIncome.push({ id: 'oi' + Date.now() + Math.floor(Math.random() * 1000), description, amount, date, expenseHeadId });
+    document.getElementById('inc-desc').value = '';
+    document.getElementById('inc-amount').value = '';
+    document.getElementById('inc-date').value = '';
+    document.getElementById('inc-head').value = '';
+    paintIncome(); await saveData();
+  });
+
+  document.getElementById('exp-add').addEventListener('click', async () => {
+    const head = document.getElementById('exp-head').value.trim();
+    if(!head){ alert('Enter a head name.'); return; }
+    const vendorName = document.getElementById('exp-vendor').value.trim();
+    const committed = Number(document.getElementById('exp-committed').value) || 0;
+    DATA.expenses.push({
+      id: 'x' + Date.now() + Math.floor(Math.random() * 1000),
+      head, vendorName, subItems: [], committed, discount: 0, payments: [], date: '', notes: ''
+    });
+    document.getElementById('exp-head').value = '';
+    document.getElementById('exp-vendor').value = '';
+    document.getElementById('exp-committed').value = '';
+    paint(); await saveData();
+  });
+
+  document.getElementById('exp-export').addEventListener('click', () => {
+    const rows = [['Head','Vendor','Sub-item','Unit Cost','Qty','Line Total','Sub-total','Discount','Net Committed','Paid','Balance','Date','Notes']];
+    (DATA.expenses || []).forEach(h => {
+      const subTotal = subItemsTotal(h);
+      const net = expenseNetCommitted(h);
+      const paid = headPaid(h);
+      const balance = net - paid;
+      if(h.subItems.length === 0){
+        rows.push([h.head, h.vendorName, '', '', '', '', subTotal, h.discount, net, paid, balance, h.date, h.notes]);
+      } else {
+        h.subItems.forEach((si, i) => {
+          rows.push([
+            i === 0 ? h.head : '', i === 0 ? h.vendorName : '',
+            si.name, si.unitCost, si.quantity, si.unitCost * si.quantity,
+            i === 0 ? subTotal : '', i === 0 ? h.discount : '', i === 0 ? net : '',
+            i === 0 ? paid : '', i === 0 ? balance : '', i === 0 ? h.date : '', i === 0 ? h.notes : ''
+          ]);
+        });
+      }
+    });
+    // Second table: every individual payment, since a head can be settled
+    // across several installments that the summary rows above only total.
+    rows.push([]);
+    rows.push(['Payments']);
+    rows.push(['Head', 'Vendor', 'Amount', 'Mode', 'Date', 'Note']);
+    (DATA.expenses || []).forEach(h => {
+      (h.payments || []).forEach(p => rows.push([h.head, h.vendorName, p.amount, p.mode, p.date, p.note]));
+    });
+    // Third table: other income (sponsorships, donations, …) beyond coupon sales.
+    rows.push([]);
+    rows.push(['Other Income']);
+    rows.push(['Description', 'Amount', 'Date', 'For Expense Head']);
+    (DATA.otherIncome || []).forEach(o => {
+      rows.push([o.description, o.amount, o.date, o.expenseHeadId ? expenseHeadName(o.expenseHeadId) : '']);
+    });
+    const csv = rows.map(row => row.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'onam-sadya-accounting.csv';
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
     URL.revokeObjectURL(url);
   });
