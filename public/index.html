@@ -121,6 +121,7 @@ let currentTab = 'home';
 let adminUnlocked = false;
 let adminSubtab = 'dashboard';
 let payEditId = null;   // registration id whose "Paid To" is being set/edited in the Registrations table
+let regEditId = null;   // registration id whose name/flat/phone is being edited in the Registrations table
 let scanStream = null;
 let scanRAF = null;
 
@@ -1090,7 +1091,7 @@ function renderAdmin(){
     <div id="admin-content"></div>
   `;
   el.querySelectorAll('.admin-subtabs button').forEach(b => b.addEventListener('click', async () => {
-    adminSubtab = b.dataset.s; payEditId = null; stopScanner(); await refreshData(); renderAdmin();
+    adminSubtab = b.dataset.s; payEditId = null; regEditId = null; stopScanner(); await refreshData(); renderAdmin();
   }));
 
   const c = document.getElementById('admin-content');
@@ -1337,14 +1338,16 @@ function renderAdminRegistrations(c){
   c.innerHTML = `
     <div class="card" style="overflow-x:auto;">
       <table>
-        <thead><tr><th>Coupon</th><th>Name</th><th>Flat</th><th>Ph</th><th>Mem</th><th>Amt</th><th>Payment</th><th>Entry</th><th></th><th></th></tr></thead>
+        <thead><tr><th>Coupon</th><th>Name</th><th>Flat</th><th>Ph</th><th>Mem</th><th>Amt</th><th>Payment</th><th>Entry</th><th></th><th></th><th></th></tr></thead>
         <tbody>
-          ${regs.map(r => `
+          ${regs.map(r => {
+            const editing = regEditId === r.id;
+            return `
             <tr>
               <td class="mono">${esc(r.couponNumber)}</td>
-              <td>${esc(r.name)}</td>
-              <td>${esc(r.flat || '—')}</td>
-              <td class="mono">${esc(r.phone)}</td>
+              <td>${editing ? `<input class="reg-edit-field" data-field="name" value="${esc(r.name)}" style="width:110px;">` : esc(r.name)}</td>
+              <td>${editing ? `<input class="reg-edit-field" data-field="flat" value="${esc(r.flat || '')}" style="width:70px;">` : esc(r.flat || '—')}</td>
+              <td class="mono">${editing ? `<input class="reg-edit-field" data-field="phone" value="${esc(r.phone)}" style="width:100px;">` : esc(r.phone)}</td>
               <td>${r.members}</td>
               <td>${fmtMoney(r.amount)}</td>
               <td>${payCellHTML(r)}</td>
@@ -1354,14 +1357,20 @@ function renderAdminRegistrations(c){
                 if(c === r.tickets.length) return `<span class="badge redeemed">In (${c}/${r.tickets.length})</span>`;
                 return `<span class="badge redeemed">${c}/${r.tickets.length}</span>`;
               })()}</td>
+              ${editing ? `
+              <td colspan="3"><span style="display:flex;gap:6px;flex-wrap:wrap;">
+                <button class="pill-btn paid" data-regsave="${r.id}">Save</button>
+                <button class="pill-btn pending" data-regcancel="1">Cancel</button>
+              </span></td>` : `
+              <td><button class="ghost" data-regedit="${r.id}">Edit</button></td>
               <td><button class="ghost" data-wa="${r.id}" style="color:var(--leaf);">WhatsApp</button></td>
-              <td><button class="ghost" data-del="${r.id}">Remove</button></td>
+              <td><button class="ghost" data-del="${r.id}">Remove</button></td>`}
             </tr>
-          `).join('')}
+          `;}).join('')}
         </tbody>
       </table>
     </div>
-    <p class="small-note">"Mark Paid" asks who collected the payment (a UPI payee, or cash to Rishi / Rakesh), then opens WhatsApp with a payment-confirmation message for the resident ending in a "Display Coupon" link that opens their passes and the door-redeem flow. Tap the green "Paid · …" button to change who it was paid to, or to mark it unpaid. "WhatsApp" sends their entry-pass PDF.</p>
+    <p class="small-note">"Mark Paid" asks who collected the payment (a UPI payee, or cash to Rishi / Rakesh), then opens WhatsApp with a payment-confirmation message for the resident ending in a "Display Coupon" link that opens their passes and the door-redeem flow. Tap the green "Paid · …" button to change who it was paid to, or to mark it unpaid. "WhatsApp" sends their entry-pass PDF. "Edit" fixes a mistyped name, flat, or phone in place — it keeps the same coupon and QR codes, so any pass already sent stays valid.</p>
   `;
   // Open the "Paid To" picker for a still-unpaid coupon, or for an already-paid one.
   c.querySelectorAll('[data-paystart], [data-payedit]').forEach(b => b.addEventListener('click', () => {
@@ -1403,6 +1412,35 @@ function renderAdminRegistrations(c){
     payEditId = null;
     renderAdminRegistrations(c);
     await saveData();
+  }));
+  c.querySelectorAll('[data-regedit]').forEach(b => b.addEventListener('click', () => {
+    payEditId = null;
+    regEditId = b.dataset.regedit;
+    renderAdminRegistrations(c);
+    const input = c.querySelector('.reg-edit-field[data-field="name"]');
+    if(input) input.focus();
+  }));
+  c.querySelectorAll('[data-regcancel]').forEach(b => b.addEventListener('click', () => {
+    regEditId = null;
+    renderAdminRegistrations(c);
+  }));
+  c.querySelectorAll('[data-regsave]').forEach(b => b.addEventListener('click', async () => {
+    const row = b.closest('tr');
+    const name = row.querySelector('[data-field="name"]').value.trim();
+    const flat = row.querySelector('[data-field="flat"]').value.trim();
+    const phone = row.querySelector('[data-field="phone"]').value.trim();
+    if(!name){ alert('Name cannot be empty.'); return; }
+    if(!phone){ alert('Phone cannot be empty.'); return; }
+    const r = DATA.registrations.find(x => x.id === b.dataset.regsave);
+    if(!r) return;
+    r.name = name; r.flat = flat; r.phone = phone;
+    regEditId = null;
+    renderAdminRegistrations(c);
+    await saveData();
+  }));
+  c.querySelectorAll('.reg-edit-field').forEach(inp => inp.addEventListener('keydown', e => {
+    if(e.key === 'Enter') c.querySelector('[data-regsave]').click();
+    if(e.key === 'Escape') c.querySelector('[data-regcancel]').click();
   }));
   c.querySelectorAll('[data-wa]').forEach(b => b.addEventListener('click', () => {
     const r = DATA.registrations.find(x => x.id === b.dataset.wa);
