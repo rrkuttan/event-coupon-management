@@ -89,7 +89,6 @@
   </a>
   <div class="nav">
     <button class="nav-link active" data-tab="home">Home</button>
-    <button class="nav-link" data-tab="register">Coupons</button>
     <button class="nav-link" data-tab="lookup">My QR Pass</button>
   </div>
   <button id="admin-lock" class="lock-btn" type="button" aria-label="Organizer access" title="Organizer access">
@@ -107,7 +106,6 @@
   </div>
 
   <div id="tab-home"></div>
-  <div id="tab-register" style="display:none;"></div>
   <div id="tab-lookup" style="display:none;"></div>
   <div id="tab-admin" style="display:none;"></div>
   <div id="ticket-view" style="display:none;"></div>
@@ -168,8 +166,8 @@ async function loadData(){
   renderAll(); // paint the Home page immediately — it doesn't need Firestore
   if(!window.__firebaseReady){
     document.getElementById('storage-warning').style.display = 'block';
-    document.querySelectorAll('.nav-link[data-tab="register"], .nav-link[data-tab="lookup"], #tab-register, #tab-lookup, #tab-admin').forEach(el => el.style.opacity = '0.4');
-    document.querySelectorAll('.nav-link[data-tab="register"], .nav-link[data-tab="lookup"]').forEach(b => b.disabled = true);
+    document.querySelectorAll('.nav-link[data-tab="lookup"], #tab-lookup, #tab-admin').forEach(el => el.style.opacity = '0.4');
+    document.querySelectorAll('.nav-link[data-tab="lookup"]').forEach(b => b.disabled = true);
     document.getElementById('admin-lock').disabled = true;
     return;
   }
@@ -347,7 +345,6 @@ const COUPON_PARAM = new URLSearchParams(location.search).get('coupon');
 if(TICKET_PARAM || COUPON_PARAM){
   document.getElementById('topbar').style.display = 'none';
   document.getElementById('tab-home').style.display = 'none';
-  document.getElementById('tab-register').style.display = 'none';
   document.getElementById('tab-lookup').style.display = 'none';
   document.getElementById('tab-admin').style.display = 'none';
   document.getElementById('ticket-view').style.display = '';
@@ -368,7 +365,7 @@ adminLockBtn.addEventListener('click', () => {
   switchTab(currentTab === 'admin' ? 'home' : 'admin');
 });
 
-const PAGES = ['home', 'register', 'lookup', 'admin'];
+const PAGES = ['home', 'lookup', 'admin'];
 async function switchTab(name){
   currentTab = name;
   document.querySelectorAll('.nav-link').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
@@ -391,7 +388,6 @@ function renderAll(){
   if(COUPON_PARAM){ if(DATA) renderCouponView(COUPON_PARAM); return; }
   if(currentTab === 'home'){ renderHome(); return; }
   if(!DATA) return;
-  if(currentTab === 'register') renderRegister();
   if(currentTab === 'lookup') renderLookup();
   if(currentTab === 'admin') renderAdmin();
 }
@@ -426,6 +422,7 @@ function renderHome(){
   el.dataset.built = '1';
   const calSvg = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="17" rx="2"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4"/></svg>`;
   const pinSvg = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 5.5-8 12-8 12s-8-6.5-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="2.6"/></svg>`;
+  const regretSvg = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:20px;height:20px;flex-shrink:0;margin-top:1px;"><circle cx="12" cy="12" r="9"/><path d="M8 15.5c1.1-1.2 2.5-1.8 4-1.8s2.9.6 4 1.8"/><line x1="9" y1="9.5" x2="9.01" y2="9.5"/><line x1="15" y1="9.5" x2="15.01" y2="9.5"/></svg>`;
   el.innerHTML = `
     <section class="hero">
       <div class="hero-copy">
@@ -444,13 +441,15 @@ function renderHome(){
         <div class="event-panel event-panel-sadya">
           <span class="event-panel-label">Onam Sadya</span>
           <p>${SADYA_INFO}</p>
-          <button class="btn-cta" id="home-register">Purchase Coupons <span aria-hidden="true">&rarr;</span></button>
+          <div class="scan-result warn" style="margin-top:10px;display:flex;gap:9px;align-items:flex-start;">
+            ${regretSvg}
+            <div><b>SOLD OUT.</b> Sadya Coupons are currently sold out. For any last minute availability, please contact Rishi <a href="tel:+919611566760">96115 66760</a> or Rakesh <a href="tel:+919496330727">94963 30727</a>.</div>
+          </div>
         </div>
       </div>
       <section class="ticker" id="home-ticker" aria-label="Cultural programme" hidden></section>
     </section>
   `;
-  document.getElementById('home-register').addEventListener('click', () => switchTab('register'));
   paintTicker();
 }
 
@@ -650,12 +649,15 @@ function paymentConfirmWaLink(r){
   return `https://wa.me/${intl}?text=${encodeURIComponent(msg)}`;
 }
 
-/* ---------------- REGISTER TAB ---------------- */
-function renderRegister(){
-  const el = document.getElementById('tab-register');
+/* ---------------- ADD COUPON (admin-only data entry) ---------------- */
+// Same purchase flow that used to be public — now reachable only from inside
+// the admin panel (Admin > Add Coupon), for the organizer to key in
+// last-minute / walk-in coupons by hand. `el` is the container to render into
+// (the admin-content div).
+function renderRegister(el){
   el.innerHTML = `
     <div class="card" id="reg-form">
-      <h2 style="margin-top:0;font-size:19px;">Purchase Coupons</h2>
+      <h2 style="margin-top:0;font-size:19px;">Add Coupon</h2>
       <label>Resident name</label>
       <input id="reg-name" type="text" placeholder="e.g. Anitha Menon">
       <label>Phone number</label>
@@ -728,8 +730,8 @@ function renderRegister(){
         <p style="font-size:14px;margin:0 0 14px;">Coupon <span class="mono" style="font-weight:600;">${couponNumber}</span> — ${members} member(s), total ${fmtMoney(amount)}.</p>
         ${upiPayNoteHTML(reg)}
         ${couponActionsHTML()}
-        <p class="small-note">Shows as "Payment Pending" until the organizer confirms payment.
-          <a href="#" id="reg-again" style="color:var(--leaf);white-space:nowrap;">Purchase another →</a></p>
+        <p class="small-note">Shows as "Payment Pending" until marked paid in Registrations.
+          <a href="#" id="reg-again" style="color:var(--leaf);white-space:nowrap;">Add another →</a></p>
       </div>
       ${couponCardHTML(reg)}`;
     reg.tickets.forEach(t => renderTicketQR(t));
@@ -746,7 +748,6 @@ function renderRegister(){
       document.getElementById('reg-form').style.display = '';
       window.scrollTo(0, 0);
     });
-    if(currentTab === 'admin') renderAdmin();
   });
 }
 
@@ -1081,6 +1082,7 @@ function renderAdmin(){
   el.innerHTML = `
     <div class="admin-subtabs">
       <button data-s="dashboard" class="${adminSubtab==='dashboard'?'active':''}">Dashboard</button>
+      <button data-s="add-coupon" class="${adminSubtab==='add-coupon'?'active':''}">Add Coupon</button>
       <button data-s="registrations" class="${adminSubtab==='registrations'?'active':''}">Registrations</button>
       <button data-s="events" class="${adminSubtab==='events'?'active':''}">Cultural Programs</button>
       <button data-s="redeem" class="${adminSubtab==='redeem'?'active':''}">Redeem Entry</button>
@@ -1096,6 +1098,7 @@ function renderAdmin(){
 
   const c = document.getElementById('admin-content');
   if(adminSubtab === 'dashboard') renderAdminDashboard(c);
+  if(adminSubtab === 'add-coupon') renderRegister(c);
   if(adminSubtab === 'registrations') renderAdminRegistrations(c);
   if(adminSubtab === 'events') renderAdminEvents(c);
   if(adminSubtab === 'redeem') renderAdminRedeem(c);
