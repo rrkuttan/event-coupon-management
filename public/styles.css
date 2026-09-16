@@ -31,22 +31,6 @@ h1,h2,h3,.display{font-family:var(--font-display);}
   content:"";position:absolute;left:9px;right:9px;bottom:1px;height:2px;
   background:var(--gold);border-radius:2px;
 }
-.lock-btn{
-  flex-shrink:0;width:34px;height:34px;border-radius:50%;
-  display:flex;align-items:center;justify-content:center;cursor:pointer;
-  background:transparent;border:1px solid var(--line);color:var(--muted);
-  transition:background .18s,transform .1s,box-shadow .18s,color .18s;
-  -webkit-tap-highlight-color:transparent;
-}
-.lock-btn:hover{background:var(--wash);color:var(--ink);}
-.lock-btn:active{transform:scale(.93);}
-.lock-btn svg{width:16px;height:16px;display:block;}
-.lock-btn .i-unlocked{display:none;}
-.lock-btn.unlocked{background:var(--leaf);border-color:var(--leaf);color:var(--on-accent);}
-.lock-btn.unlocked .i-locked{display:none;}
-.lock-btn.unlocked .i-unlocked{display:block;}
-.lock-btn.viewing{box-shadow:0 0 0 3px var(--ring);}
-.lock-btn:disabled{opacity:.4;cursor:default;}
 .wrap{max-width:680px;margin:0 auto;padding:20px 16px 0;}
 .eyebrow{letter-spacing:.16em;text-transform:uppercase;font-size:11px;color:var(--gold);font-weight:700;}
 .card{

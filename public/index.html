@@ -91,10 +91,6 @@
     <button class="nav-link active" data-tab="home">Home</button>
     <button class="nav-link" data-tab="lookup">My QR Pass</button>
   </div>
-  <button id="admin-lock" class="lock-btn" type="button" aria-label="Organizer access" title="Organizer access">
-    <svg class="i-locked" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-    <svg class="i-unlocked" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>
-  </button>
 </nav>
 
 <div class="wrap">
@@ -168,7 +164,7 @@ async function loadData(){
     document.getElementById('storage-warning').style.display = 'block';
     document.querySelectorAll('.nav-link[data-tab="lookup"], #tab-lookup, #tab-admin').forEach(el => el.style.opacity = '0.4');
     document.querySelectorAll('.nav-link[data-tab="lookup"]').forEach(b => b.disabled = true);
-    document.getElementById('admin-lock').disabled = true;
+    if(currentTab === 'admin') renderAdmin();
     return;
   }
   try{
@@ -351,19 +347,10 @@ if(TICKET_PARAM || COUPON_PARAM){
   document.getElementById('ticket-view').innerHTML = `<div class="card"><div class="empty">Loading…</div></div>`;
 }
 
-const adminLockBtn = document.getElementById('admin-lock');
-// The lock in the nav bar is the only way into the organizer view: locked →
-// tap → PIN gate; once unlocked the icon flips open and tapping toggles the
-// admin panel on/off. `viewing` marks that the panel is currently showing.
-function updateLockUI(){
-  adminLockBtn.classList.toggle('unlocked', adminUnlocked);
-  adminLockBtn.classList.toggle('viewing', currentTab === 'admin');
-  adminLockBtn.setAttribute('aria-label',
-    currentTab === 'admin' ? 'Close organizer view' : (adminUnlocked ? 'Open organizer view' : 'Organizer access'));
-}
-adminLockBtn.addEventListener('click', () => {
-  switchTab(currentTab === 'admin' ? 'home' : 'admin');
-});
+// Admin has no nav link — it's reached only via the /admin URL (PIN gate still
+// applies once there). Visiting /admin directly starts the app on that tab.
+const ADMIN_ROUTE = /^\/admin\/?$/.test(location.pathname);
+if(ADMIN_ROUTE) currentTab = 'admin';
 
 const PAGES = ['home', 'lookup', 'admin'];
 async function switchTab(name){
@@ -371,7 +358,8 @@ async function switchTab(name){
   document.querySelectorAll('.nav-link').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
   PAGES.forEach(p => { document.getElementById('tab-' + p).style.display = p === name ? '' : 'none'; });
   stopScanner();
-  updateLockUI();
+  const path = name === 'admin' ? '/admin' : '/';
+  if(location.pathname !== path && history && history.pushState) history.pushState({}, '', path);
   renderAll();
   window.scrollTo(0, 0);
   // Admin views and coupon lookup read live state (redemptions happen on other
@@ -382,6 +370,10 @@ async function switchTab(name){
 }
 document.querySelectorAll('.nav-link').forEach(b => b.addEventListener('click', () => switchTab(b.dataset.tab)));
 document.getElementById('brand-home').addEventListener('click', e => { e.preventDefault(); switchTab('home'); });
+if(ADMIN_ROUTE){
+  document.querySelectorAll('.nav-link').forEach(b => b.classList.toggle('active', b.dataset.tab === 'admin'));
+  PAGES.forEach(p => { document.getElementById('tab-' + p).style.display = p === 'admin' ? '' : 'none'; });
+}
 
 function renderAll(){
   if(TICKET_PARAM){ if(DATA) renderTicketView(TICKET_PARAM); return; }
@@ -1055,6 +1047,14 @@ async function shareResultsWhatsApp(list, btn){
 /* ---------------- ADMIN TAB ---------------- */
 function renderAdmin(){
   const el = document.getElementById('tab-admin');
+  if(!window.__firebaseReady){
+    el.innerHTML = `
+      <div class="card admin-gate">
+        <h2 style="margin-top:0;">Organizer access unavailable</h2>
+        <p class="small-note">Firebase isn't configured for this copy of the site, so there's no data to manage. See the setup note in the page source.</p>
+      </div>`;
+    return;
+  }
   if(!adminUnlocked){
     el.innerHTML = `
       <div class="card admin-gate">
@@ -1067,7 +1067,6 @@ function renderAdmin(){
       const pin = document.getElementById('admin-pin').value.trim();
       if(pin === DATA.config.adminPin){
         adminUnlocked = true;
-        updateLockUI();
         await refreshData();
         renderAdmin();
       }else{
@@ -2340,7 +2339,6 @@ function renderAdminAccounting(c){
   });
 }
 
-updateLockUI();
 loadData();
 </script>
 </body>
