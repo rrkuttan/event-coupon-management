@@ -392,18 +392,10 @@ const EVENT_INFO = {
 };
 
 // Two panels on the Home hero, styled to match the WhatsApp link-preview flyer
-// (public/assets/og-flyer.png): Onam Sadya (paid, via coupon) and Cultural
-// Programs (performing — contact Padma/Nanditha, no coupon involved). Coupons
-// are mentioned only in connection with the lunch, never with performing —
-// that's what signals participation itself costs nothing, without saying so.
+// (public/assets/og-flyer.png): Onam Sadya and Cultural Programs.
 // Trusted static copy (not user input), so it's inserted as HTML directly —
-// not passed through esc() — to keep the tel:/rupee markup.
-// The UPI payees here are static copy, not read from DATA.config.upiPayees:
-// this hero markup is built once, before the first Firestore fetch resolves
-// (see loadData()'s first, DATA-less renderAll() call), so it can't reflect
-// live admin edits — keep it in sync by hand if the payees ever change.
-const SADYA_INFO = 'A traditional Kerala banana leaf meal for coupon holders — ₹500 per meal. Pay via UPI to Rishi <a href="tel:+919611566760">96115 66760</a> or Rakesh <a href="tel:+919496330727">94963 30727</a>.';
-const CULTURAL_INVITE = 'Eternia residents are invited to perform — musical, dance, instrumental, skit, standup comedy! — and showcase their talent. To take part, contact Padma <a href="tel:+918861933777">88619 33777</a> or Rishi <a href="tel:+919611566760">96115 66760</a>. Programs run 9:00–11:30am, followed by the Onam Sadya lunch for coupon holders.';
+// not passed through esc().
+const CULTURAL_INVITE = 'Cultural programs run 9:00am–11:30am, followed by the Onam Sadya lunch from 12:00 noon–2:45pm for coupon holders.';
 
 // Shown wherever entry-pass QR codes appear (screen + every PDF / WhatsApp message).
 const QR_INFO = 'Your QR code contains your payment status and can be used to redeem entry at the event.';
@@ -430,37 +422,37 @@ function renderHome(){
           <span class="event-panel-label">Cultural Programs</span>
           <p>${CULTURAL_INVITE}</p>
         </div>
+        <section class="ticker" id="home-ticker" aria-label="Cultural programme" hidden></section>
         <div class="event-panel event-panel-sadya">
           <span class="event-panel-label">Onam Sadya</span>
-          <p>${SADYA_INFO}</p>
           <div class="scan-result warn" style="margin-top:10px;display:flex;gap:9px;align-items:flex-start;">
             ${regretSvg}
-            <div><b>SOLD OUT.</b> Sadya Coupons are currently sold out. For any last minute availability, please contact Rishi <a href="tel:+919611566760">96115 66760</a> or Rakesh <a href="tel:+919496330727">94963 30727</a>.</div>
+            <div><b>SOLD OUT.</b> Bookings are closed for Sadya 2026.</div>
           </div>
         </div>
       </div>
-      <section class="ticker" id="home-ticker" aria-label="Cultural programme" hidden></section>
     </section>
   `;
   paintTicker();
 }
 
-// Scrolling ticker of the day's cultural programme (admin-editable list).
-// Hidden on the Home page per request — leave the admin-editable data model
-// and this function intact so it can be turned back on by removing the return below.
+// Vertically scrolling ticker of the day's cultural programme (admin-editable
+// list), shown just under the Cultural Programs panel. Titles only — times
+// are still stored/editable in the admin data model but not shown here.
 function paintTicker(){
   const wrap = document.getElementById('home-ticker');
   if(!wrap) return;
-  wrap.hidden = true; wrap.innerHTML = ''; return;
   const events = (DATA && Array.isArray(DATA.culturalEvents)) ? DATA.culturalEvents : [];
   if(events.length === 0){ wrap.hidden = true; wrap.innerHTML = ''; return; }
-  const one = events.map(e => `<span class="ticker-item"><b>${esc(e.time)}</b>${esc(e.title)}</span>`).join('');
-  const k = Math.max(1, Math.ceil(6 / events.length));   // repeat so the strip fills the viewport
-  const half = one.repeat(k);
-  const secs = Math.max(16, events.length * k * 3.6);     // constant-ish scroll speed
+  const items = events.map(e => `<span class="ticker-item"><span class="ticker-bullet">&bull;</span>${esc(e.title)}</span>`).join('');
+  const divider = `<span class="ticker-divider" aria-hidden="true">&#10022;&nbsp;&#10022;&nbsp;&#10022;</span>`; // marks where the list restarts
+  const onePass = items + divider;
+  const k = Math.max(1, Math.ceil(6 / events.length));   // repeat so the column fills the viewport
+  const half = onePass.repeat(k);
+  const secs = Math.max(12, events.length * k * 2.4);     // constant-ish scroll speed
   wrap.innerHTML = `
     <span class="ticker-label">Programmes</span>
-    <ul class="sr-only">${events.map(e => `<li>${esc(e.time)} — ${esc(e.title)}</li>`).join('')}</ul>
+    <ul class="sr-only">${events.map(e => `<li>${esc(e.title)}</li>`).join('')}</ul>
     <div class="ticker-viewport">
       <div class="ticker-track" style="animation-duration:${secs}s;">
         <div class="ticker-half">${half}</div>
