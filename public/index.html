@@ -1342,8 +1342,8 @@ function renderAdminRegistrations(c){
               <td>${editing ? `<input class="reg-edit-field" data-field="name" value="${esc(r.name)}" style="width:110px;">` : esc(r.name)}</td>
               <td>${editing ? `<input class="reg-edit-field" data-field="flat" value="${esc(r.flat || '')}" style="width:70px;">` : esc(r.flat || '—')}</td>
               <td class="mono">${editing ? `<input class="reg-edit-field" data-field="phone" value="${esc(r.phone)}" style="width:100px;">` : esc(r.phone)}</td>
-              <td>${r.members}</td>
-              <td>${fmtMoney(r.amount)}</td>
+              <td>${editing ? `<input class="reg-edit-field" data-field="members" type="number" min="1" max="20" value="${r.members}" style="width:55px;">` : r.members}</td>
+              <td class="reg-amt-cell" data-regamt="${r.id}">${fmtMoney(r.amount)}</td>
               <td>${payCellHTML(r)}</td>
               <td>${(() => {
                 const c = r.tickets.filter(t=>t.redeemed).length;
@@ -1364,7 +1364,7 @@ function renderAdminRegistrations(c){
         </tbody>
       </table>
     </div>
-    <p class="small-note">"Mark Paid" asks who collected the payment (a UPI payee, or cash to Rishi / Rakesh), then opens WhatsApp with a payment-confirmation message for the resident ending in a "Display Coupon" link that opens their passes and the door-redeem flow. Tap the green "Paid · …" button to change who it was paid to, or to mark it unpaid. "WhatsApp" sends their entry-pass PDF. "Edit" fixes a mistyped name, flat, or phone in place — it keeps the same coupon and QR codes, so any pass already sent stays valid.</p>
+    <p class="small-note">"Mark Paid" asks who collected the payment (a UPI payee, or cash to Rishi / Rakesh), then opens WhatsApp with a payment-confirmation message for the resident ending in a "Display Coupon" link that opens their passes and the door-redeem flow. Tap the green "Paid · …" button to change who it was paid to, or to mark it unpaid. "WhatsApp" sends their entry-pass PDF. "Edit" fixes a mistyped name, flat, phone, or coupon count in place — it keeps the same coupon number and existing QR codes, so any pass already sent stays valid. Changing the count adds or removes members from the end of the list and won't let you remove a member who has already checked in. Unpaid coupons are repriced to today's rate; a paid coupon is prorated at the rate it was actually paid, with a confirmation showing the refund (fewer members) or extra amount due (more members) before it's applied.</p>
   `;
   // Open the "Paid To" picker for a still-unpaid coupon, or for an already-paid one.
   c.querySelectorAll('[data-paystart], [data-payedit]').forEach(b => b.addEventListener('click', () => {
@@ -1423,11 +1423,45 @@ function renderAdminRegistrations(c){
     const name = row.querySelector('[data-field="name"]').value.trim();
     const flat = row.querySelector('[data-field="flat"]').value.trim();
     const phone = row.querySelector('[data-field="phone"]').value.trim();
+    const members = Math.max(1, Math.min(20, parseInt(row.querySelector('[data-field="members"]').value || '1', 10)));
     if(!name){ alert('Name cannot be empty.'); return; }
     if(!phone){ alert('Phone cannot be empty.'); return; }
     const r = DATA.registrations.find(x => x.id === b.dataset.regsave);
     if(!r) return;
-    r.name = name; r.flat = flat; r.phone = phone;
+    if(members < r.members){
+      const dropped = r.tickets.slice(members);
+      if(dropped.some(t => t.redeemed)){
+        alert(`Can't reduce to ${members} coupon(s) — a member already checked in on ${dropped.filter(t=>t.redeemed).map(t=>t.ticketId).join(', ')}. Undo that entry first.`);
+        return;
+      }
+    }
+    let newAmount = r.amount;
+    if(members !== r.members){
+      if(r.paymentStatus === 'paid'){
+        // Keep the same per-ticket rate the household actually paid (not
+        // today's price, which may have changed since) and prorate it —
+        // covers both a partial refund (fewer members) and a top-up (more).
+        const perTicket = r.members ? r.amount / r.members : DATA.config.pricePerHead;
+        newAmount = Math.round(members * perTicket);
+        const diff = r.amount - newAmount;
+        if(diff !== 0){
+          const msg = diff > 0
+            ? `Reduce coupon count to ${members} and record a refund of ${fmtMoney(diff)} (paid amount drops from ${fmtMoney(r.amount)} to ${fmtMoney(newAmount)})?`
+            : `Increase coupon count to ${members} and record an extra ${fmtMoney(-diff)} due (paid amount rises from ${fmtMoney(r.amount)} to ${fmtMoney(newAmount)})?`;
+          if(!confirm(msg)) return;
+        }
+      } else {
+        newAmount = members * DATA.config.pricePerHead;
+      }
+    }
+    if(members < r.members) r.tickets = r.tickets.slice(0, members);
+    else if(members > r.members){
+      for(let i = r.tickets.length + 1; i <= members; i++){
+        r.tickets.push({ seq: i, ticketId: r.couponNumber + '-' + String(i).padStart(2, '0'), redeemed: false, redeemedAt: null });
+      }
+    }
+    r.amount = newAmount;
+    r.name = name; r.flat = flat; r.phone = phone; r.members = members;
     regEditId = null;
     renderAdminRegistrations(c);
     await saveData();
@@ -1436,6 +1470,25 @@ function renderAdminRegistrations(c){
     if(e.key === 'Enter') c.querySelector('[data-regsave]').click();
     if(e.key === 'Escape') c.querySelector('[data-regcancel]').click();
   }));
+  // Live-preview the Amt cell as the coupon count is edited, so the total is
+  // visibly in sync before Save is even clicked. For an unpaid coupon this
+  // previews today's price × count; for a paid one it prorates the rate the
+  // household actually paid (a member-count cut on a paid coupon implies a
+  // partial refund, confirmed with the actual figures on Save).
+  const memberEditInput = c.querySelector('[data-field="members"]');
+  if(memberEditInput){
+    const r = DATA.registrations.find(x => x.id === regEditId);
+    const amtCell = c.querySelector(`[data-regamt="${regEditId}"]`);
+    if(r && amtCell){
+      memberEditInput.addEventListener('input', () => {
+        const m = Math.max(1, Math.min(20, parseInt(memberEditInput.value || '1', 10)));
+        const preview = r.paymentStatus === 'paid'
+          ? Math.round(m * (r.members ? r.amount / r.members : DATA.config.pricePerHead))
+          : m * DATA.config.pricePerHead;
+        amtCell.textContent = fmtMoney(preview);
+      });
+    }
+  }
   c.querySelectorAll('[data-wa]').forEach(b => b.addEventListener('click', () => {
     const r = DATA.registrations.find(x => x.id === b.dataset.wa);
     if(r) shareResultsWhatsApp([r], b);
