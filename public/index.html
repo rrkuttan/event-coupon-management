@@ -155,7 +155,10 @@ const DEFAULT_DATA = {
     { id: 'e10', title: 'Kids Dance - Choreography by Nandita', time: '11:15 AM' },
     { id: 'e11', title: 'Closing ceremony and photo booth', time: '11:30 AM' }
   ],
-  registrations: []
+  registrations: [],
+  // Bulk WhatsApp broadcast draft + progress — persisted so a page reload or
+  // a different organizer's device doesn't lose track of who's been sent to.
+  broadcast: { message: '', sentPhones: [] }
 };
 
 async function loadData(){
@@ -244,7 +247,12 @@ function normalizeData(loaded){
     date: typeof (o && o.date) === 'string' ? o.date : '',
     expenseHeadId: String((o && o.expenseHeadId) || '').trim()
   }));
-  return { config, culturalEvents, registrations, expenses, otherIncome };
+  const broadcast = {
+    message: typeof (d.broadcast && d.broadcast.message) === 'string' ? d.broadcast.message : '',
+    sentPhones: Array.isArray(d.broadcast && d.broadcast.sentPhones)
+      ? [...new Set(d.broadcast.sentPhones.map(String))] : []
+  };
+  return { config, culturalEvents, registrations, expenses, otherIncome, broadcast };
 }
 
 async function saveData(){
@@ -1075,6 +1083,7 @@ function renderAdmin(){
       <button data-s="dashboard" class="${adminSubtab==='dashboard'?'active':''}">Dashboard</button>
       <button data-s="add-coupon" class="${adminSubtab==='add-coupon'?'active':''}">Add Coupon</button>
       <button data-s="registrations" class="${adminSubtab==='registrations'?'active':''}">Registrations</button>
+      <button data-s="broadcast" class="${adminSubtab==='broadcast'?'active':''}">Broadcast</button>
       <button data-s="events" class="${adminSubtab==='events'?'active':''}">Cultural Programs</button>
       <button data-s="redeem" class="${adminSubtab==='redeem'?'active':''}">Redeem Entry</button>
       <button data-s="settlement" class="${adminSubtab==='settlement'?'active':''}">Settlement</button>
@@ -1091,6 +1100,7 @@ function renderAdmin(){
   if(adminSubtab === 'dashboard') renderAdminDashboard(c);
   if(adminSubtab === 'add-coupon') renderRegister(c);
   if(adminSubtab === 'registrations') renderAdminRegistrations(c);
+  if(adminSubtab === 'broadcast') renderAdminBroadcast(c);
   if(adminSubtab === 'events') renderAdminEvents(c);
   if(adminSubtab === 'redeem') renderAdminRedeem(c);
   if(adminSubtab === 'settlement') renderAdminSettlement(c);
@@ -1498,6 +1508,119 @@ function renderAdminRegistrations(c){
     DATA.registrations = DATA.registrations.filter(x => x.id !== b.dataset.del);
     await saveData(); renderAdminRegistrations(c);
   }));
+}
+
+// Normalizes a stored phone number to the "91XXXXXXXXXX" form wa.me expects,
+// which also doubles as the dedupe key for broadcastRecipients().
+function normalizePhoneIntl(phone){
+  const digits = String(phone || '').replace(/\D/g, '');
+  if(!digits) return '';
+  return digits.length === 10 ? '91' + digits : digits;
+}
+
+// One row per unique phone number across every registration — a household
+// with two coupons on the same number is merged into a single recipient so
+// the bulk send can't reach them twice.
+function broadcastRecipients(){
+  const byPhone = new Map();
+  DATA.registrations.forEach(r => {
+    const phone = normalizePhoneIntl(r.phone);
+    if(!phone) return;
+    if(!byPhone.has(phone)) byPhone.set(phone, { phone, names: [] });
+    byPhone.get(phone).names.push(r.name);
+  });
+  return [...byPhone.values()].sort((a, b) => a.names[0].localeCompare(b.names[0]));
+}
+
+function renderAdminBroadcast(c){
+  const recipients = broadcastRecipients();
+  const sentPhones = new Set(DATA.broadcast.sentPhones);
+  const sentCount = recipients.filter(r => sentPhones.has(r.phone)).length;
+  const allDone = recipients.length > 0 && sentCount === recipients.length;
+  c.innerHTML = `
+    <div class="card">
+      <h3 style="margin-top:0;">Bulk WhatsApp message</h3>
+      <p class="small-note">${recipients.length} unique mobile number(s) across ${DATA.registrations.length} registration(s) — the same number registered more than once only gets the message once.</p>
+      <label>Message</label>
+      <textarea id="bc-message" rows="6" placeholder="Type the message to send…">${esc(DATA.broadcast.message)}</textarea>
+      <p class="small-note">There's no bulk-send API without a paid WhatsApp Business integration — each tap opens WhatsApp for one recipient with this text pre-filled; you still tap Send inside the chat. Progress is saved, so already-opened numbers stay skipped even after a reload or on another organizer's device.</p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;">
+        <button class="primary" id="bc-next" style="max-width:260px;" ${allDone ? 'disabled' : ''}>Open next (${sentCount}/${recipients.length} done)</button>
+        <button class="secondary" id="bc-reset" style="max-width:170px;">Reset progress</button>
+      </div>
+      <div id="bc-result"></div>
+    </div>
+    <div class="card">
+      <h3 style="margin-top:0;">Send a test message</h3>
+      <p class="small-note">Preview exactly what recipients will see by sending it to your own number first — this never touches the recipient list or progress above, so it's safe to try as many times as you like.</p>
+      <label>Your WhatsApp number</label>
+      <input id="bc-test-phone" type="tel" placeholder="10-digit mobile number" inputmode="numeric" style="max-width:220px;">
+      <button class="secondary" id="bc-test-send" style="max-width:180px;margin-top:12px;">Send test</button>
+    </div>
+    <div class="card" style="overflow-x:auto;">
+      <table>
+        <thead><tr><th>Phone</th><th>Name(s)</th><th>Status</th><th></th></tr></thead>
+        <tbody>
+          ${recipients.length === 0 ? `<tr><td colspan="4"><div class="empty">No registered mobile numbers yet.</div></td></tr>` : recipients.map(r => {
+            const sent = sentPhones.has(r.phone);
+            return `
+            <tr>
+              <td class="mono">${esc(r.phone)}</td>
+              <td>${esc([...new Set(r.names)].join(', '))}</td>
+              <td>${sent ? '<span class="badge redeemed">Sent</span>' : '—'}</td>
+              <td><button class="ghost" data-bcsend="${r.phone}">${sent ? 'Resend' : 'Send'}</button></td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+
+  const textarea = document.getElementById('bc-message');
+  // Persist the draft when the admin leaves the field rather than on every
+  // keystroke, so typing doesn't spam Firestore writes.
+  textarea.addEventListener('blur', async () => {
+    if(textarea.value === DATA.broadcast.message) return;
+    DATA.broadcast.message = textarea.value;
+    await saveData();
+  });
+
+  // Opens the WhatsApp chat for one number, marks it sent, and persists that
+  // (plus the current draft) to Firestore. Returns false — without opening
+  // anything — if there's no message typed yet.
+  const openFor = async phone => {
+    const msg = textarea.value.trim();
+    if(!msg){ alert('Type a message first.'); return false; }
+    window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, '_blank');
+    DATA.broadcast.message = textarea.value;
+    if(!DATA.broadcast.sentPhones.includes(phone)) DATA.broadcast.sentPhones.push(phone);
+    renderAdminBroadcast(c);
+    await saveData();
+    return true;
+  };
+
+  document.getElementById('bc-next').addEventListener('click', () => {
+    const next = recipients.find(r => !sentPhones.has(r.phone));
+    if(next) openFor(next.phone);
+  });
+  document.getElementById('bc-reset').addEventListener('click', async () => {
+    if(!confirm('Clear sent-progress for this broadcast? (The message text is kept; already-opened numbers become eligible again.)')) return;
+    DATA.broadcast.sentPhones = [];
+    renderAdminBroadcast(c);
+    await saveData();
+  });
+  // Test send: opens WhatsApp with the current draft, same as a real send,
+  // but deliberately skips broadcastRecipients() entirely — it doesn't
+  // check, add to, or persist sentPhones, so it can't mark a real
+  // registrant "Sent" or affect the Open-next queue.
+  document.getElementById('bc-test-send').addEventListener('click', () => {
+    const msg = textarea.value.trim();
+    if(!msg){ alert('Type a message first.'); return; }
+    const phone = normalizePhoneIntl(document.getElementById('bc-test-phone').value);
+    if(!phone){ alert('Enter a valid 10-digit mobile number.'); return; }
+    window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, '_blank');
+  });
+  c.querySelectorAll('[data-bcsend]').forEach(b => b.addEventListener('click', () => openFor(b.dataset.bcsend)));
 }
 
 function renderAdminEvents(c){
